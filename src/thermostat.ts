@@ -45,7 +45,7 @@ export default class Thermostat {
   }
 
   async evaluateChanges() {
-    console.debug('startevaluateChanges()');
+    console.debug('start evaluateChanges()');
     try {
       // get current state from relaisController
       const relaisResult = await fetch(`http://${this.relaisIp}/state`);
@@ -92,6 +92,20 @@ export default class Thermostat {
               console.debug('turn on heating since min target has been reached, don\'t change target');
               try {
                 if (!this.relaisStates[1]) {
+                  await this.relaisChangeState(1, 'on');
+                  this.relaisStates[1] = true;
+                }
+                this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
+                this.retries = 0;
+              } catch {
+                console.error('Error while turning off the heater, try again next cycle.');
+                this.retries++;
+              }
+            } else if (this.CurrentTemperature <= this.TargetTemperature) {
+              console.debug('turn on heating since current temperature is below the target temperature');
+              try {
+                if (!this.relaisStates[1]) {
+                  console.log('relaisChangeState');
                   await this.relaisChangeState(1, 'on');
                   this.relaisStates[1] = true;
                 }
