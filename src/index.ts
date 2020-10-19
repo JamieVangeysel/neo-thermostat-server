@@ -1,6 +1,6 @@
 import { FileSystem, IConfig } from "./filesystem";
-import HttpListener from "./http-listener";
-import Thermostat, { HeatingCoolingStateEnum, TemperatureDisplayUnits } from "./thermostat";
+import { HttpListener } from "./http-listener";
+import { Thermostat, HeatingCoolingStateEnum, TemperatureDisplayUnits } from "./thermostat";
 
 
 const filesystem = new FileSystem();
@@ -19,7 +19,8 @@ const main = async (debug?: boolean): Promise<boolean> => {
         const config = filesystem.checkBuffer(configBuffer);
         if (config) {
           const thermostat = new Thermostat(config.thermostatState);
-          const http = new HttpListener(config.hostname, config.port, thermostat);
+          const http = new HttpListener();
+          http.configure(config.hostname, config.port, thermostat);
 
           resolve(true);
         }
@@ -43,7 +44,8 @@ const main = async (debug?: boolean): Promise<boolean> => {
 
         if (writeOk) {
           const thermostat = new Thermostat(defaultConfig.thermostatState);
-          const http = new HttpListener(defaultConfig.hostname, defaultConfig.port, thermostat);
+          const http = new HttpListener();
+          http.configure(defaultConfig.hostname, defaultConfig.port, thermostat);
         }
 
         resolve(writeOk);

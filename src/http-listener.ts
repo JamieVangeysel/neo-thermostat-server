@@ -1,5 +1,6 @@
+import { EventEmitter } from 'events';
 import express from 'express';
-import Thermostat, { HeatingCoolingStateEnum } from './thermostat';
+import { Thermostat, HeatingCoolingStateEnum } from './thermostat';
 
 const okResponse = {
   success: true
@@ -10,11 +11,11 @@ const valueResponse = (value: any) => {
   };
 };
 
-export default class HttpListener {
+export class HttpListener extends EventEmitter {
   private app: express.Express;
   private thermostat: Thermostat;
 
-  constructor(hostname: string, port: number, thermostat: Thermostat) {
+  configure(hostname: string, port: number, thermostat: Thermostat) {
     console.debug(`Constructed new instance of HttpListener('${hostname}', ${port}, Thermostat())`);
     this.thermostat = thermostat;
     this.app = express();
