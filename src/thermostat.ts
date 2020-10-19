@@ -31,12 +31,14 @@ export default class Thermostat {
       const data = (await result.json()) as DeviceReponse;
 
       this.state.currentTemperature = data.temperature;
+      await this.evaluateChanges();
     } catch (err) {
       console.error('error while running getSensorData();', err);
     }
   }
 
   async evaluateChanges() {
+    console.debug('evaluateChanges()')
     switch (this.state.targetHeatingCoolingState) {
       case HeatingCoolingStateEnum.OFF:
         // Target is off, set current to off and return
@@ -163,6 +165,7 @@ export default class Thermostat {
 
   public set TargetTemperature(value: number) {
     this.state.targetTemperature = value;
+    this.evaluateChanges();
   }
 
   public get CurrentHeatingCoolingState(): HeatingCoolingStateEnum {
@@ -175,6 +178,7 @@ export default class Thermostat {
 
   public set TargetHeatingCoolingState(value: HeatingCoolingStateEnum) {
     this.state.targetHeatingCoolingState = value;
+    this.evaluateChanges();
   }
 
   public get CoolingThresholdTemperature(): number {
@@ -183,6 +187,7 @@ export default class Thermostat {
 
   public set CoolingThresholdTemperature(value: number) {
     this.state.coolingThresholdTemperature = value;
+    this.evaluateChanges();
   }
 
   public get HeatingThresholdTemperature(): number {
@@ -191,6 +196,7 @@ export default class Thermostat {
 
   public set HeatingThresholdTemperature(value: number) {
     this.state.heatingThresholdTemperature = value;
+    this.evaluateChanges();
   }
 
   private get HeatingThresholdTemperatureMin(): number {
