@@ -26,11 +26,11 @@ export default class Thermostat {
   async getSensorData() {
     try {
       const result = await fetch(this.sensorUrl);
-      const data: DeviceReponse = await result.json();
+      const data = (await result.json()) as DeviceReponse;
 
       this.state.currentTemperature = data.temperature;
-    } catch {
-      console.error('error while running getSensorData();');
+    } catch (err) {
+      console.error('error while running getSensorData();', err);
     }
   }
 
@@ -50,6 +50,7 @@ export default class Thermostat {
             try {
               await this.relaisChangeState(2, 'off');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
+              this.retries = 0;
             } catch {
               console.error('Error while turning off the heater, try again next cycle.');
               this.retries++;
@@ -62,6 +63,7 @@ export default class Thermostat {
             try {
               await this.relaisChangeState(2, 'on');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
+              this.retries = 0;
             } catch {
               console.error('Error while turning off the heater, try again next cycle.');
               this.retries++;
@@ -79,6 +81,7 @@ export default class Thermostat {
             try {
               await this.relaisChangeState(1, 'off');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
+              this.retries = 0;
             } catch {
               console.error('Error while turning off the heater, try again next cycle.');
               this.retries++;
@@ -91,6 +94,7 @@ export default class Thermostat {
             try {
               await this.relaisChangeState(2, 'on');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL;
+              this.retries = 0;
             } catch {
               console.error('Error while turning off the cooling, try again next cycle.');
               this.retries++;
@@ -98,6 +102,44 @@ export default class Thermostat {
           }
         }
         return;
+
+      case HeatingCoolingStateEnum.AUTO:
+        // Target is auto, check is current state is HEAT or COOL
+        switch (this.state.currentHeatingCoolingState) {
+          case HeatingCoolingStateEnum.HEAT:
+            // Check if target temperature has not been reached
+            if (this.CurrentTemperature >= this.HeatingThresholdTemperature) {
+              // turn off heating since target has been reached, don't change target
+              try {
+                await this.relaisChangeState(2, 'off');
+                this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
+                this.retries = 0;
+              } catch {
+                console.error('Error while turning off the heater, try again next cycle.');
+                this.retries++;
+              }
+            }
+            break;
+
+          case HeatingCoolingStateEnum.COOL:
+            // Check if target temperature has been reached
+            if (this.CurrentTemperature <= this.CoolingThresholdTemperature) {
+              // turn off cooling since target has been reached, don't change target
+              try {
+                await this.relaisChangeState(1, 'off');
+                this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
+                this.retries = 0;
+              } catch {
+                console.error('Error while turning off the heater, try again next cycle.');
+                this.retries++;
+              }
+            }
+            break;
+
+          case HeatingCoolingStateEnum.OFF:
+            // determine if state should be changed to HEAT or COOL
+            break;
+        }
     }
   }
 
