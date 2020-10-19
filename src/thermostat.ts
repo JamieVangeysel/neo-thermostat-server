@@ -50,6 +50,7 @@ export default class Thermostat {
       // get current state from relaisController
       const relaisResult = await fetch(`http://${this.relaisIp}/state`);
       const relaisStatesResult: { status: boolean[] } = await relaisResult.json();
+      console.debug('relaisResult: ', relaisStatesResult);
       this.relaisStates = relaisStatesResult.status;
 
       switch (this.state.targetHeatingCoolingState) {
