@@ -10,7 +10,7 @@ const main = async (debug?: boolean): Promise<boolean> => {
     const thermostat = new Thermostat();
     const http = new HttpListener('0.0.0.0', 8080, thermostat);
 
-
+    resolve(true);
   });
 }
 
