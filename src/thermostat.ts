@@ -1,3 +1,5 @@
+import fetch from 'cross-fetch';
+
 export default class Thermostat {
   private uuid = '6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a';
   private state: ThermostatState = {
