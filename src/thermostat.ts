@@ -7,7 +7,7 @@ export default class Thermostat {
     targetHeatingCoolingState: HeatingCoolingStateEnum.OFF,
     temperatureDisplayUnits: TemperatureDisplayUnits.CELSIUS,
     coolingThresholdTemperature: 20,
-    heatingThresholdTemperature: 21,
+    heatingThresholdTemperature: 20.5,
   };
 
   private relaisIp = '192.168.0.164';
@@ -46,7 +46,7 @@ export default class Thermostat {
         if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
           // Check if target temperature has not been reached
           if (this.CurrentTemperature >= this.HeatingThresholdTemperature) {
-            // turn off heating since target has been reached, don't change target so heating will be reanabled
+            // turn off heating since target has been reached, don't change target
             try {
               await this.relaisChangeState(2, 'off');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
@@ -55,7 +55,49 @@ export default class Thermostat {
               this.retries++;
             }
           }
+        } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
+          // check if minimum temperature has been reached
+          if (this.state.currentTemperature <= this.HeatingThresholdTemperatureMin) {
+            // turn on heating since min target has been reached, don't change target
+            try {
+              await this.relaisChangeState(2, 'on');
+              this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
+            } catch {
+              console.error('Error while turning off the heater, try again next cycle.');
+              this.retries++;
+            }
+          }
         }
+        return;
+
+      case HeatingCoolingStateEnum.COOL:
+        // Target is cooling, check if currently cooling
+        if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
+          // Check if target temperature has been reached
+          if (this.CurrentTemperature <= this.CoolingThresholdTemperature) {
+            // turn off cooling since target has been reached, don't change target
+            try {
+              await this.relaisChangeState(1, 'off');
+              this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
+            } catch {
+              console.error('Error while turning off the heater, try again next cycle.');
+              this.retries++;
+            }
+          }
+        } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
+          // check if maximum temperature has been reached
+          if (this.state.currentTemperature >= this.CoolingThresholdTemperatureMax) {
+            // turn on heating since min target has been reached, don't change target
+            try {
+              await this.relaisChangeState(2, 'on');
+              this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL;
+            } catch {
+              console.error('Error while turning off the cooling, try again next cycle.');
+              this.retries++;
+            }
+          }
+        }
+        return;
     }
   }
 
@@ -105,6 +147,14 @@ export default class Thermostat {
 
   public set HeatingThresholdTemperature(value: number) {
     this.state.heatingThresholdTemperature = value;
+  }
+
+  private get HeatingThresholdTemperatureMin(): number {
+    return this.state.heatingThresholdTemperature - 1.5;
+  }
+
+  private get CoolingThresholdTemperatureMax(): number {
+    return this.state.coolingThresholdTemperature + 1.5;
   }
 
   private get sensorUrl() {
