@@ -13,6 +13,10 @@ export default class Thermostat {
   };
 
   private relaisIp = '192.168.0.164';
+  private relaisStates = [
+    false,
+    false
+  ];
   private retries = 0;
 
   constructor(state?: ThermostatState) {
@@ -46,6 +50,9 @@ export default class Thermostat {
       case HeatingCoolingStateEnum.OFF:
         console.debug('Target is off, set current to off and return');
         this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState;
+
+        await this.relaisChangeState(1, 'off');
+        await this.relaisChangeState(2, 'off');
         return;
 
       case HeatingCoolingStateEnum.HEAT:
@@ -151,6 +158,7 @@ export default class Thermostat {
   }
 
   private async relaisChangeState(switchId: number, newState: 'on' | 'off') {
+    console.log(`get 'http://${this.relaisIp}/${switchId}/${newState}'`);
     await fetch(`http://${this.relaisIp}/${switchId}/${newState}`);
   }
 
