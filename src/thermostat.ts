@@ -15,7 +15,10 @@ export default class Thermostat {
   private relaisIp = '192.168.0.164';
   private retries = 0;
 
-  constructor() {
+  constructor(state?: ThermostatState) {
+    if (state) {
+      this.state = state;
+    }
     console.debug(`Constructed new instance of Thermostat()`);
     // get initial data from azure
     this.getSensorData();
@@ -41,16 +44,16 @@ export default class Thermostat {
     console.debug('evaluateChanges()')
     switch (this.state.targetHeatingCoolingState) {
       case HeatingCoolingStateEnum.OFF:
-        // Target is off, set current to off and return
+        console.debug('Target is off, set current to off and return');
         this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState;
         return;
 
       case HeatingCoolingStateEnum.HEAT:
-        // Target is heating, check if currently heating
+        console.debug('Target is heating, check if currently heating');
         if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
-          // Check if target temperature has not been reached
+          console.debug('Check if target temperature has not been reached');
           if (this.CurrentTemperature >= this.HeatingThresholdTemperature) {
-            // turn off heating since target has been reached, don't change target
+            console.debug('turn off heating since target has been reached, don\'t change target');
             try {
               await this.relaisChangeState(2, 'off');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
@@ -61,9 +64,9 @@ export default class Thermostat {
             }
           }
         } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-          // check if minimum temperature has been reached
+          console.debug('check if minimum temperature has been reached');
           if (this.state.currentTemperature <= this.HeatingThresholdTemperatureMin) {
-            // turn on heating since min target has been reached, don't change target
+            console.debug('turn on heating since min target has been reached, don\'t change target');
             try {
               await this.relaisChangeState(2, 'on');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
@@ -77,11 +80,11 @@ export default class Thermostat {
         return;
 
       case HeatingCoolingStateEnum.COOL:
-        // Target is cooling, check if currently cooling
+        console.debug('Target is cooling, check if currently cooling');
         if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
-          // Check if target temperature has been reached
+          console.debug('Check if target temperature has been reached');
           if (this.CurrentTemperature <= this.CoolingThresholdTemperature) {
-            // turn off cooling since target has been reached, don't change target
+            console.debug('turn off cooling since target has been reached, don\'t change target');
             try {
               await this.relaisChangeState(1, 'off');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
@@ -92,9 +95,9 @@ export default class Thermostat {
             }
           }
         } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-          // check if maximum temperature has been reached
+          console.debug('check if maximum temperature has been reached');
           if (this.state.currentTemperature >= this.CoolingThresholdTemperatureMax) {
-            // turn on heating since min target has been reached, don't change target
+            console.debug('turn on heating since min target has been reached, don\'t change target');
             try {
               await this.relaisChangeState(2, 'on');
               this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL;
@@ -108,12 +111,12 @@ export default class Thermostat {
         return;
 
       case HeatingCoolingStateEnum.AUTO:
-        // Target is auto, check is current state is HEAT or COOL
+        console.debug('Target is auto, check is current state is HEAT or COOL');
         switch (this.state.currentHeatingCoolingState) {
           case HeatingCoolingStateEnum.HEAT:
-            // Check if target temperature has not been reached
+            console.debug('Check if target temperature has not been reached');
             if (this.CurrentTemperature >= this.HeatingThresholdTemperature) {
-              // turn off heating since target has been reached, don't change target
+              console.debug('turn off heating since target has been reached, don\'t change target');
               try {
                 await this.relaisChangeState(2, 'off');
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
@@ -126,9 +129,9 @@ export default class Thermostat {
             break;
 
           case HeatingCoolingStateEnum.COOL:
-            // Check if target temperature has been reached
+            console.debug('Check if target temperature has been reached');
             if (this.CurrentTemperature <= this.CoolingThresholdTemperature) {
-              // turn off cooling since target has been reached, don't change target
+              console.debug('turn off cooling since target has been reached, don\'t change target');
               try {
                 await this.relaisChangeState(1, 'off');
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
@@ -141,7 +144,7 @@ export default class Thermostat {
             break;
 
           case HeatingCoolingStateEnum.OFF:
-            // determine if state should be changed to HEAT or COOL
+            console.debug('determine if state should be changed to HEAT or COOL');
             break;
         }
     }
