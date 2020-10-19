@@ -45,87 +45,39 @@ export default class Thermostat {
   }
 
   async evaluateChanges() {
-    console.debug('evaluateChanges()')
-    switch (this.state.targetHeatingCoolingState) {
-      case HeatingCoolingStateEnum.OFF:
-        console.debug('Target is off, set current to off and return');
-        this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState;
+    console.debug('startevaluateChanges()');
+    try {
+      // get current state from relaisController
+      const relaisResult = await fetch(`http://${this.relaisIp}/state`);
+      const relaisStatesResult: { status: boolean[] } = await relaisResult.json();
+      this.relaisStates = relaisStatesResult.status;
 
-        await this.relaisChangeState(1, 'off');
-        await this.relaisChangeState(2, 'off');
-        return;
+      switch (this.state.targetHeatingCoolingState) {
+        case HeatingCoolingStateEnum.OFF:
+          console.debug('Target is off, set current to off and return');
+          this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState;
 
-      case HeatingCoolingStateEnum.HEAT:
-        console.debug('Target is heating, check if currently heating');
-        if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
-          console.debug('Check if target temperature has not been reached');
-          if (this.CurrentTemperature >= this.HeatingThresholdTemperature) {
-            console.debug('turn off heating since target has been reached, don\'t change target');
-            try {
-              await this.relaisChangeState(2, 'off');
-              this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
-              this.retries = 0;
-            } catch {
-              console.error('Error while turning off the heater, try again next cycle.');
-              this.retries++;
-            }
+          if (this.relaisStates[0]) {
+            await this.relaisChangeState(0, 'off');
+            this.relaisStates[0] = false;
           }
-        } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-          console.debug('check if minimum temperature has been reached');
-          if (this.state.currentTemperature <= this.HeatingThresholdTemperatureMin) {
-            console.debug('turn on heating since min target has been reached, don\'t change target');
-            try {
-              await this.relaisChangeState(2, 'on');
-              this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
-              this.retries = 0;
-            } catch {
-              console.error('Error while turning off the heater, try again next cycle.');
-              this.retries++;
-            }
+          if (this.relaisStates[1]) {
+            await this.relaisChangeState(1, 'off');
+            this.relaisStates[1] = false;
           }
-        }
-        return;
+          return;
 
-      case HeatingCoolingStateEnum.COOL:
-        console.debug('Target is cooling, check if currently cooling');
-        if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
-          console.debug('Check if target temperature has been reached');
-          if (this.CurrentTemperature <= this.CoolingThresholdTemperature) {
-            console.debug('turn off cooling since target has been reached, don\'t change target');
-            try {
-              await this.relaisChangeState(1, 'off');
-              this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
-              this.retries = 0;
-            } catch {
-              console.error('Error while turning off the heater, try again next cycle.');
-              this.retries++;
-            }
-          }
-        } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-          console.debug('check if maximum temperature has been reached');
-          if (this.state.currentTemperature >= this.CoolingThresholdTemperatureMax) {
-            console.debug('turn on heating since min target has been reached, don\'t change target');
-            try {
-              await this.relaisChangeState(2, 'on');
-              this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL;
-              this.retries = 0;
-            } catch {
-              console.error('Error while turning off the cooling, try again next cycle.');
-              this.retries++;
-            }
-          }
-        }
-        return;
-
-      case HeatingCoolingStateEnum.AUTO:
-        console.debug('Target is auto, check is current state is HEAT or COOL');
-        switch (this.state.currentHeatingCoolingState) {
-          case HeatingCoolingStateEnum.HEAT:
+        case HeatingCoolingStateEnum.HEAT:
+          console.debug('Target is heating, check if currently heating');
+          if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
             console.debug('Check if target temperature has not been reached');
             if (this.CurrentTemperature >= this.HeatingThresholdTemperature) {
               console.debug('turn off heating since target has been reached, don\'t change target');
               try {
-                await this.relaisChangeState(2, 'off');
+                if (this.relaisStates[1]) {
+                  await this.relaisChangeState(1, 'off');
+                  this.relaisStates[1] = false;
+                }
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
                 this.retries = 0;
               } catch {
@@ -133,14 +85,36 @@ export default class Thermostat {
                 this.retries++;
               }
             }
-            break;
+          } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
+            console.debug('check if minimum temperature has been reached');
+            if (this.state.currentTemperature <= this.HeatingThresholdTemperatureMin) {
+              console.debug('turn on heating since min target has been reached, don\'t change target');
+              try {
+                if (!this.relaisStates[1]) {
+                  await this.relaisChangeState(1, 'on');
+                  this.relaisStates[1] = true;
+                }
+                this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
+                this.retries = 0;
+              } catch {
+                console.error('Error while turning off the heater, try again next cycle.');
+                this.retries++;
+              }
+            }
+          }
+          return;
 
-          case HeatingCoolingStateEnum.COOL:
+        case HeatingCoolingStateEnum.COOL:
+          console.debug('Target is cooling, check if currently cooling');
+          if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
             console.debug('Check if target temperature has been reached');
             if (this.CurrentTemperature <= this.CoolingThresholdTemperature) {
               console.debug('turn off cooling since target has been reached, don\'t change target');
               try {
-                await this.relaisChangeState(1, 'off');
+                if (this.relaisStates[0]) {
+                  await this.relaisChangeState(0, 'off');
+                  this.relaisStates[0] = false;
+                }
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
                 this.retries = 0;
               } catch {
@@ -148,18 +122,80 @@ export default class Thermostat {
                 this.retries++;
               }
             }
-            break;
+          } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
+            console.debug('check if maximum temperature has been reached');
+            if (this.state.currentTemperature >= this.CoolingThresholdTemperatureMax) {
+              console.debug('turn on heating since min target has been reached, don\'t change target');
+              try {
+                if (!this.relaisStates[0]) {
+                  await this.relaisChangeState(0, 'on');
+                  this.relaisStates[0] = true;
+                }
+                this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL;
+                this.retries = 0;
+              } catch {
+                console.error('Error while turning off the cooling, try again next cycle.');
+                this.retries++;
+              }
+            }
+          }
+          return;
 
-          case HeatingCoolingStateEnum.OFF:
-            console.debug('determine if state should be changed to HEAT or COOL');
-            break;
-        }
+        case HeatingCoolingStateEnum.AUTO:
+          console.debug('Target is auto, check is current state is HEAT or COOL');
+          switch (this.state.currentHeatingCoolingState) {
+            case HeatingCoolingStateEnum.HEAT:
+              console.debug('Check if target temperature has not been reached');
+              if (this.CurrentTemperature >= this.HeatingThresholdTemperature) {
+                console.debug('turn off heating since target has been reached, don\'t change target');
+                try {
+                  if (this.relaisStates[1]) {
+                    await this.relaisChangeState(1, 'off');
+                    this.relaisStates[1] = false;
+                  }
+                  this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
+                  this.retries = 0;
+                } catch {
+                  console.error('Error while turning off the heater, try again next cycle.');
+                  this.retries++;
+                }
+              }
+              break;
+
+            case HeatingCoolingStateEnum.COOL:
+              console.debug('Check if target temperature has been reached');
+              if (this.CurrentTemperature <= this.CoolingThresholdTemperature) {
+                console.debug('turn off cooling since target has been reached, don\'t change target');
+                try {
+                  if (this.relaisStates[0]) {
+                    await this.relaisChangeState(0, 'off');
+                    this.relaisStates[0] = false;
+                  }
+                  this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
+                  this.retries = 0;
+                } catch {
+                  console.error('Error while turning off the heater, try again next cycle.');
+                  this.retries++;
+                }
+              }
+              break;
+
+            case HeatingCoolingStateEnum.OFF:
+              console.debug('determine if state should be changed to HEAT or COOL');
+              break;
+          }
+      }
+    } catch (err) {
+      console.error('error while updating relais state', err);
+    } finally {
+      console.debug(`finished running evaluateChanges()`);
     }
   }
 
-  private async relaisChangeState(switchId: number, newState: 'on' | 'off') {
-    console.log(`get 'http://${this.relaisIp}/${switchId}/${newState}'`);
-    await fetch(`http://${this.relaisIp}/${switchId}/${newState}`);
+  private async relaisChangeState(relaisIndex: number, newState: 'on' | 'off') {
+    const relaisId = relaisIndex + 1;
+    console.log(`get 'http://${this.relaisIp}/${relaisId}/${newState}'`);
+    await fetch(`http://${this.relaisIp}/${relaisId}/${newState}`);
   }
 
   public get State(): ThermostatState {
