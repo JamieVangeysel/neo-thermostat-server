@@ -42,6 +42,12 @@ export class Thermostat {
       const relaisStates = (await relaisResult.json()).status;
       console.debug('relaisResult: ', relaisStates);
 
+      console.info(`Current temperature: ${this.state.currentTemperature}, target Temperature: ${this.state.targetTemperature}`,
+        this.state.targetHeatingCoolingState,
+        this.state.currentHeatingCoolingState,
+        this.thresholds
+      );
+
       switch (this.state.targetHeatingCoolingState) {
         case HeatingCoolingStateEnum.OFF:
           console.debug('targetHeatingCoolingState is OFF, set current state to OFF');
