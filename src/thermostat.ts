@@ -196,7 +196,7 @@ export class Thermostat {
   }
 
   public get TargetTemperature(): number {
-    return this.state.targetTemperature
+    return this.state.targetTemperature;
   }
 
   public set TargetTemperature(value: number) {

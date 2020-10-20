@@ -1,12 +1,11 @@
-import { FileSystem, IConfig } from "./filesystem";
-import { HttpListener } from "./http-listener";
-import { Thermostat, HeatingCoolingStateEnum, TemperatureDisplayUnits } from "./thermostat";
+import { FileSystem, IConfig } from './filesystem';
+import { HttpListener } from './http-listener';
+import { Thermostat, HeatingCoolingStateEnum, TemperatureDisplayUnits } from './thermostat';
 
 
 const filesystem = new FileSystem();
 
 /**
- * @function: main()
  * @description: this is the entry point of the program, return true if the application started
  */
 const main = async (debug?: boolean): Promise<boolean> => {
@@ -35,9 +34,7 @@ const main = async (debug?: boolean): Promise<boolean> => {
             targetTemperature: 20,
             currentHeatingCoolingState: HeatingCoolingStateEnum.OFF,
             targetHeatingCoolingState: HeatingCoolingStateEnum.OFF,
-            temperatureDisplayUnits: TemperatureDisplayUnits.CELSIUS,
-            coolingThresholdTemperature: 20,
-            heatingThresholdTemperature: 20.5,
+            temperatureDisplayUnits: TemperatureDisplayUnits.CELSIUS
           }
         };
         const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(defaultConfig)));
@@ -52,10 +49,10 @@ const main = async (debug?: boolean): Promise<boolean> => {
         return;
       }
     } catch (err) {
-      reject(err)
+      reject(err);
     }
   });
-}
+};
 
 export default main;
 
