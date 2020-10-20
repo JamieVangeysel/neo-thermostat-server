@@ -17,7 +17,7 @@ const main = async (debug?: boolean): Promise<boolean> => {
         const configBuffer: Buffer = await filesystem.readFile('./config.json');
         const config = filesystem.checkBuffer(configBuffer);
         if (config) {
-          const thermostat = new Thermostat(config.thermostatState);
+          const thermostat = new Thermostat(config);
           const http = new HttpListener();
           http.configure(config.hostname, config.port, thermostat);
 
@@ -40,7 +40,7 @@ const main = async (debug?: boolean): Promise<boolean> => {
         const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(defaultConfig)));
 
         if (writeOk) {
-          const thermostat = new Thermostat(defaultConfig.thermostatState);
+          const thermostat = new Thermostat(defaultConfig);
           const http = new HttpListener();
           http.configure(defaultConfig.hostname, defaultConfig.port, thermostat);
         }

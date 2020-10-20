@@ -1,22 +1,16 @@
 import { fetch } from 'cross-fetch';
+import { FileSystem, IConfig } from './filesystem';
 
 export class Thermostat {
+  private config: IConfig;
   private uuid = '6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a';
-  private state: ThermostatState = {
-    currentTemperature: 0,
-    targetTemperature: 20,
-    currentHeatingCoolingState: HeatingCoolingStateEnum.OFF,
-    targetHeatingCoolingState: HeatingCoolingStateEnum.OFF,
-    temperatureDisplayUnits: TemperatureDisplayUnits.CELSIUS
-  };
 
   private relaisIp = '192.168.0.164';
   private retries = 0;
 
-  constructor(state?: ThermostatState) {
-    if (state) {
-      this.state = state;
-    }
+  constructor(config: IConfig) {
+    this.config = config;
+
     console.debug(`Constructed new instance of Thermostat()`);
     // get initial data from azure
     this.getSensorData();
@@ -164,6 +158,13 @@ export class Thermostat {
       if (this.retries > 5) {
         console.error(`Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
       }
+
+      const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.config)));
+      if (writeOk) {
+        console.debug('successfully saved current state in config');
+      } else {
+        console.error('Error while trying to save current config to disk!');
+      }
     }
   }
 
@@ -185,6 +186,14 @@ export class Thermostat {
       coolingMax: this.TargetTemperature + 0.5,
       coolingMin: this.TargetTemperature - 1.0
     };
+  }
+
+  private get state(): ThermostatState {
+    return this.config.thermostatState;
+  }
+
+  private set state(value: ThermostatState) {
+    this.config.thermostatState = value;
   }
 
   public get State(): ThermostatState {
