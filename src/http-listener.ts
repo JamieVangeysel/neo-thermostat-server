@@ -63,15 +63,15 @@ export class HttpListener extends EventEmitter {
       res.send(valueResponse(this.thermostat.TargetHeatingCoolingState));
     });
 
-    this.app.get('/cooling-threshold', (req, res) => {
-      console.debug(`received request '/cooling-threshold', returning cooling threshold.`);
-      res.send(valueResponse(this.thermostat.CoolingThresholdTemperature));
-    });
+    // this.app.get('/cooling-threshold', (req, res) => {
+    //   console.debug(`received request '/cooling-threshold', returning cooling threshold.`);
+    //   res.send(valueResponse(this.thermostat.CoolingThresholdTemperature));
+    // });
 
-    this.app.get('/heating-threshold', (req, res) => {
-      console.debug(`received request '/heating-threshold', returning heating threshold.`);
-      res.send(valueResponse(this.thermostat.HeatingThresholdTemperature));
-    });
+    // this.app.get('/heating-threshold', (req, res) => {
+    //   console.debug(`received request '/heating-threshold', returning heating threshold.`);
+    //   res.send(valueResponse(this.thermostat.HeatingThresholdTemperature));
+    // });
     //#endregion
 
     //#region posts
@@ -99,30 +99,30 @@ export class HttpListener extends EventEmitter {
         res.send(err);
       }
     });
-    this.app.post('/cooling-threshold', (req, res) => {
-      console.debug(`received request POST '/cooling-threshold', setting cooling threshold.`);
-      try {
-        const coolingThresholdTemperature: IPostNumberValue = req.body;
-        this.thermostat.CoolingThresholdTemperature = coolingThresholdTemperature.value;
-        console.debug('Set cooling threshold to: ' + coolingThresholdTemperature.value);
-        res.send(okResponse);
-      } catch (err) {
-        res.status(500);
-        res.send(err);
-      }
-    });
-    this.app.post('/heating-threshold', (req, res) => {
-      console.debug(`received request POST '/heating-threshold', setting heating threshold.`);
-      try {
-        const heatingThresholdTemperature: IPostNumberValue = req.body;
-        this.thermostat.HeatingThresholdTemperature = heatingThresholdTemperature.value;
-        console.debug('Set heating threshold to: ' + heatingThresholdTemperature.value);
-        res.send(okResponse);
-      } catch (err) {
-        res.status(500);
-        res.send(err);
-      }
-    });
+    // this.app.post('/cooling-threshold', (req, res) => {
+    //   console.debug(`received request POST '/cooling-threshold', setting cooling threshold.`);
+    //   try {
+    //     const coolingThresholdTemperature: IPostNumberValue = req.body;
+    //     this.thermostat.CoolingThresholdTemperature = coolingThresholdTemperature.value;
+    //     console.debug('Set cooling threshold to: ' + coolingThresholdTemperature.value);
+    //     res.send(okResponse);
+    //   } catch (err) {
+    //     res.status(500);
+    //     res.send(err);
+    //   }
+    // });
+    // this.app.post('/heating-threshold', (req, res) => {
+    //   console.debug(`received request POST '/heating-threshold', setting heating threshold.`);
+    //   try {
+    //     const heatingThresholdTemperature: IPostNumberValue = req.body;
+    //     this.thermostat.HeatingThresholdTemperature = heatingThresholdTemperature.value;
+    //     console.debug('Set heating threshold to: ' + heatingThresholdTemperature.value);
+    //     res.send(okResponse);
+    //   } catch (err) {
+    //     res.status(500);
+    //     res.send(err);
+    //   }
+    // });
     //#endregion
   }
 }
