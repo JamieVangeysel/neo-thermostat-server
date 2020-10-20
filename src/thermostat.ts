@@ -66,6 +66,11 @@ export class Thermostat {
 
         case HeatingCoolingStateEnum.HEAT:
           console.debug('targetHeatingCoolingState is HEAT, check if currently heating');
+          if (relaisStates[0]) {
+            console.debug('sytem is currently cooling, turn off COOL');
+            await this.relaisChangeState(0, 'off');
+            relaisStates[0] = false;
+          }
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
             // The system is currently heating, check if we need to shutdown heater for reaching maximum temperature
             console.debug('Check if target temperature has not been reached');
@@ -118,6 +123,11 @@ export class Thermostat {
 
         case HeatingCoolingStateEnum.COOL:
           console.debug('Target is cooling, check if currently cooling');
+          if (relaisStates[1]) {
+            console.debug('sytem is currently heating, turn off HEAT');
+            await this.relaisChangeState(1, 'off');
+            relaisStates[1] = false;
+          }
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
             console.debug('Check if target temperature has been reached');
             if (this.CurrentTemperature <= this.thresholds.coolingMin) {
