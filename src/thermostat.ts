@@ -154,7 +154,7 @@ export class Thermostat {
     } catch (err) {
       console.error('error while updating relais state', err);
     } finally {
-      console.debug(`finished running evaluateChanges()`, 'retries: ', this.retries);
+      console.debug(`finished running evaluateChanges()`, 'retries:', this.retries);
       if (this.retries > 5) {
         console.error(`Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
       }
