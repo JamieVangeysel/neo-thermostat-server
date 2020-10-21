@@ -1,12 +1,15 @@
 import { fetch } from 'cross-fetch';
 import { FileSystem, IConfig } from './filesystem';
 import { IRelaisSwitch, Relais, SwitchTypeEnum } from './relais/relais';
+import { OpenWeatherMapResponse, WeatherInfo } from './weather-info';
 
 export class Thermostat {
   private config: IConfig;
   private uuid = '6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a';
   private relais: Relais;
+  private weatherInfo: WeatherInfo;
   private retries = 0;
+  private currentForecast: OpenWeatherMapResponse;
 
   constructor(config: IConfig) {
     this.config = config;
@@ -18,6 +21,12 @@ export class Thermostat {
     this.relais = new Relais(config.relais);
     this.relais.on('update', (switches: IRelaisSwitch[]) => {
       this.config.relais.switches = switches;
+    });
+
+    this.weatherInfo = new WeatherInfo(config.weatherMapApiKey);
+    this.weatherInfo.on('forecast', (forecast: OpenWeatherMapResponse) => {
+      console.log(forecast);
+      this.currentForecast = forecast;
     });
 
     // set update interval fur current temperature to 1 minute

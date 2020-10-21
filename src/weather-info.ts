@@ -7,18 +7,29 @@ export class WeatherInfo extends EventEmitter {
     super();
     this.apiKey = apiKey;
 
+    this.startInterval();
+  }
+
+  private async startInterval() {
+    try {
+      const forecast = await this.getForecast('Hasselt,be');
+      this.emit('forecast', forecast);
+    } catch (err) {
+      this.emit('error', err);
+    }
+
     setInterval(async () => {
       try {
-        const forecast = await this.GetForecast('Hasselt,be');
+        const forecast = await this.getForecast('Hasselt,be');
         this.emit('forecast', forecast);
       } catch (err) {
         this.emit('error', err);
       }
-    });
+    }, 300000);
   }
 
   // query => Hasselt,be
-  private async GetForecast(query: string): Promise<OpenWeatherMapResponse> {
+  private async getForecast(query: string): Promise<OpenWeatherMapResponse> {
     const resp: any = await fetch(`https://api.openweathermap.org/data/2.5/weather?APPID=${this.apiKey}&units=metric&q=${query}`);
     return resp.data;
   }
