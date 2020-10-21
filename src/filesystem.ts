@@ -142,5 +142,6 @@ export class FileSystem {
 export interface IConfig {
   hostname: string;
   port: number;
+  weatherMapApiKey: string;
   thermostatState: ThermostatState;
 }

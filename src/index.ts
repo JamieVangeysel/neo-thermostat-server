@@ -29,6 +29,7 @@ const main = async (debug?: boolean): Promise<boolean> => {
         const defaultConfig: IConfig = {
           hostname: 'localhost',
           port: 8080,
+          weatherMapApiKey: '',
           thermostatState: {
             currentTemperature: 0,
             targetTemperature: 20,
