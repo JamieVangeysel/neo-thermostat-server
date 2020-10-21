@@ -32,7 +32,7 @@ export class WeatherInfo extends EventEmitter {
   // query => Hasselt,be
   private async getForecast(query: string): Promise<OpenWeatherMapResponse> {
     const resp: any = await fetch(`https://api.openweathermap.org/data/2.5/weather?APPID=${this.apiKey}&units=metric&q=${query}`);
-    return resp.data;
+    return await resp.json();
   }
 }
 
