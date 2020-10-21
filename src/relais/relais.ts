@@ -7,12 +7,12 @@ export class Relais extends EventEmitter {
   private switches: IRelaisSwitch[];
   private secure: boolean;
 
-  constructor(hostname: string, switches: IRelaisSwitch[], secure: boolean = false) {
+  constructor(config: IRelais) {
     super();
 
-    this.hostname = hostname;
-    this.switches = switches;
-    this.secure = secure;
+    this.hostname = config.hostname;
+    this.switches = config.switches;
+    this.secure = config.secure;
   }
 
   activate(type: SwitchTypeEnum) {
@@ -30,7 +30,23 @@ export class Relais extends EventEmitter {
       logger.log(`Relais.activate() -- this.setState(${e.pinIndex}, SwitchStateEnum.ON)`);
       await this.setState(e, SwitchStateEnum.ON);
     });
+    this.update();
     logger.log(`Relais.activate() -- end`);
+  }
+
+  private async update() {
+    logger.log(`Relais.update() -- start`);
+    logger.log(`Relais.update() -- get current state from relaisController`);
+    const relaisResult = await fetch(`${this.secure ? 'https' : 'http'}://${this.hostname}/state`);
+    logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`);
+    const relaisStates: boolean[] = (await relaisResult.json()).status;
+
+    for (let i = 0; i < relaisStates.length; i++) {
+      this.switches[i].active = relaisStates[i];
+    }
+
+    this.emit('update', this.switches);
+    logger.log(`Relais.update() -- end`);
   }
 
   private async setState(relais: IRelaisSwitch, state: SwitchStateEnum) {
@@ -46,7 +62,11 @@ export class Relais extends EventEmitter {
       } else {
         logger.log(`Relais.setState() -- relais is currently OFF and needs to be switched ON`, relais.pinIndex);
       }
-      await fetch(`${this.secure ? 'https' : 'http'}://${this.hostname}/${relais.pinIndex}/${state}`);
+      try {
+        await fetch(`${this.secure ? 'https' : 'http'}://${this.hostname}/${relais.pinIndex}/${state}`);
+      } catch (err) {
+        this.emit('error', err);
+      }
     }
     logger.log(`Relais.setState() -- end`);
   }
@@ -67,7 +87,8 @@ export interface IRelaisSwitch {
 export enum SwitchTypeEnum {
   HEAT = 'HEAT',
   COOL = 'COOL',
-  VENT = 'VENT' // experimental => ventilation won't be added until v3
+  VENT = 'VENT', // experimental => ventilation won't be added until v3
+  NONE = 'NONE' // dummy entry to be able to deactivate all relais switches
 }
 
 export enum SwitchStateEnum {

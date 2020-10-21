@@ -1,13 +1,11 @@
 import { fetch } from 'cross-fetch';
 import { FileSystem, IConfig } from './filesystem';
-import { Relais } from './relais/relais';
+import { IRelaisSwitch, Relais, SwitchTypeEnum } from './relais/relais';
 
 export class Thermostat {
   private config: IConfig;
   private uuid = '6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a';
   private relais: Relais;
-
-  private relaisIp = '192.168.0.164';
   private retries = 0;
 
   constructor(config: IConfig) {
@@ -16,6 +14,11 @@ export class Thermostat {
     console.debug(`Constructed new instance of Thermostat()`);
     // get initial data from azure
     this.getSensorData();
+
+    this.relais = new Relais(config.relais);
+    this.relais.on('update', (switches: IRelaisSwitch[]) => {
+      this.config.relais.switches = switches;
+    });
 
     // set update interval fur current temperature to 1 minute
     setInterval(async () => {
@@ -38,12 +41,6 @@ export class Thermostat {
   async evaluateChanges() {
     console.debug('start evaluateChanges()');
     try {
-      // get current state from relaisController
-      const relaisResult = await fetch(`http://${this.relaisIp}/state`);
-      // save current relais status in function memory : { status: boolean[] }
-      const relaisStates = (await relaisResult.json()).status;
-      console.debug('relaisResult: ', relaisStates);
-
       console.info(`Current temperature: ${this.state.currentTemperature}, target Temperature: ${this.state.targetTemperature}`,
         this.state.targetHeatingCoolingState,
         this.state.currentHeatingCoolingState,
@@ -56,22 +53,14 @@ export class Thermostat {
           this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState;
 
           // If any relais is still powered on, turn them off
-          if (relaisStates[0]) {
-            await this.relaisChangeState(0, 'off');
-            relaisStates[0] = false;
-          }
-          if (relaisStates[1]) {
-            await this.relaisChangeState(1, 'off');
-            relaisStates[1] = false;
-          }
+          this.relais.activate(SwitchTypeEnum.NONE);
           return;
 
         case HeatingCoolingStateEnum.HEAT:
           console.debug('targetHeatingCoolingState is HEAT, check if currently heating');
-          if (relaisStates[0]) {
-            console.debug('sytem is currently cooling, turn off COOL');
-            await this.relaisChangeState(0, 'off');
-            relaisStates[0] = false;
+          if (this.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
+            console.debug('system is currently cooling, turn off COOL');
+            this.relais.activate(SwitchTypeEnum.NONE);
           }
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
             // The system is currently heating, check if we need to shutdown heater for reaching maximum temperature
@@ -79,10 +68,7 @@ export class Thermostat {
             if (this.CurrentTemperature >= this.thresholds.heatingMax) {
               console.debug('turn off heating since target has been reached, don\'t change target');
               try {
-                if (relaisStates[1]) {
-                  await this.relaisChangeState(1, 'off');
-                  relaisStates[1] = false;
-                }
+                this.relais.activate(SwitchTypeEnum.NONE);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
                 this.retries = 0;
               } catch {
@@ -95,10 +81,7 @@ export class Thermostat {
             if (this.state.currentTemperature <= this.thresholds.heatingMin) {
               console.debug('turn on heating since min target has been reached, don\'t change target');
               try {
-                if (!relaisStates[1]) {
-                  await this.relaisChangeState(1, 'on');
-                  relaisStates[1] = true;
-                }
+                this.relais.activate(SwitchTypeEnum.HEAT);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
                 this.retries = 0;
               } catch {
@@ -108,11 +91,7 @@ export class Thermostat {
             } else if (this.CurrentTemperature <= this.TargetTemperature) {
               console.debug('turn on heating since current temperature is below the target temperature');
               try {
-                if (!relaisStates[1]) {
-                  console.log('relaisChangeState');
-                  await this.relaisChangeState(1, 'on');
-                  relaisStates[1] = true;
-                }
+                this.relais.activate(SwitchTypeEnum.HEAT);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
                 this.retries = 0;
               } catch {
@@ -125,20 +104,13 @@ export class Thermostat {
 
         case HeatingCoolingStateEnum.COOL:
           console.debug('Target is cooling, check if currently cooling');
-          if (relaisStates[1]) {
-            console.debug('sytem is currently heating, turn off HEAT');
-            await this.relaisChangeState(1, 'off');
-            relaisStates[1] = false;
-          }
+          this.relais.activate(SwitchTypeEnum.NONE);
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
             console.debug('Check if target temperature has been reached');
             if (this.CurrentTemperature <= this.thresholds.coolingMin) {
               console.debug('turn off cooling since target has been reached, don\'t change target');
               try {
-                if (relaisStates[0]) {
-                  await this.relaisChangeState(0, 'off');
-                  relaisStates[0] = false;
-                }
+                this.relais.activate(SwitchTypeEnum.NONE);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
                 this.retries = 0;
               } catch {
@@ -151,10 +123,7 @@ export class Thermostat {
             if (this.state.currentTemperature >= this.thresholds.coolingMax) {
               console.debug('turn on heating since min target has been reached, don\'t change target');
               try {
-                if (!relaisStates[0]) {
-                  await this.relaisChangeState(0, 'on');
-                  relaisStates[0] = true;
-                }
+                this.relais.activate(SwitchTypeEnum.COOL);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL;
                 this.retries = 0;
               } catch {
@@ -184,10 +153,6 @@ export class Thermostat {
         console.error('Error while trying to save current config to disk!');
       }
     }
-  }
-
-  private async relaisChangeState(relaisIndex: number, newState: 'on' | 'off') {
-    await fetch(`http://${this.relaisIp}/${relaisIndex + 1}/${newState}`);
   }
 
   private get sensorUrl() {
