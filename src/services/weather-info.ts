@@ -1,5 +1,7 @@
 import { fetch } from 'cross-fetch';
 import { EventEmitter } from 'events';
+import { Logger } from '../logging/logger';
+const logger = new Logger();
 
 export class WeatherInfo extends EventEmitter {
   private apiKey: string;

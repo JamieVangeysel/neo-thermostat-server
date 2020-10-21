@@ -1,31 +1,32 @@
 import { fetch } from 'cross-fetch';
-import { FileSystem, IConfig } from './filesystem';
-import { IRelaisSwitch, Relais, SwitchTypeEnum } from './relais/relais';
+import { FileSystem } from './filesystem';
+import { Platform } from '../platform';
+import { IRelaisSwitch, Relais, SwitchTypeEnum } from '../relais/relais';
 import { OpenWeatherMapResponse, WeatherInfo } from './weather-info';
 
 export class Thermostat {
-  private config: IConfig;
+  private platform: Platform;
   private uuid = '6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a';
   private relais: Relais;
   private weatherInfo: WeatherInfo;
   private retries = 0;
   private currentForecast: OpenWeatherMapResponse;
 
-  constructor(config: IConfig) {
-    this.config = config;
+  constructor(platform: Platform) {
+    this.platform = platform;
 
-    console.debug(`Constructed new instance of Thermostat()`);
+    this.platform.logger.debug(`Constructed new instance of Thermostat()`);
     // get initial data from azure
     this.getSensorData();
 
-    this.relais = new Relais(config.relais);
+    this.relais = new Relais(this.platform);
     this.relais.on('update', (switches: IRelaisSwitch[]) => {
-      this.config.relais.switches = switches;
+      this.platform.config.relais.switches = switches;
     });
 
-    this.weatherInfo = new WeatherInfo(config.weatherMapApiKey);
+    this.weatherInfo = new WeatherInfo(this.platform.config.weatherMapApiKey);
     this.weatherInfo.on('forecast', (forecast: OpenWeatherMapResponse) => {
-      console.log(forecast);
+      this.platform.logger.log(`Thermostat.weatherInfo.on('forecast')`, forecast);
       this.currentForecast = forecast;
     });
 
@@ -43,14 +44,14 @@ export class Thermostat {
       this.state.currentTemperature = data.temperature;
       await this.evaluateChanges();
     } catch (err) {
-      console.error('error while running getSensorData();', err);
+      this.platform.logger.error('error while running getSensorData();', err);
     }
   }
 
   async evaluateChanges() {
-    console.debug('start evaluateChanges()');
+    this.platform.logger.debug('start evaluateChanges()');
     try {
-      console.info(`Current temperature: ${this.state.currentTemperature}, target Temperature: ${this.state.targetTemperature}`,
+      this.platform.logger.info(`Current temperature: ${this.state.currentTemperature}, target Temperature: ${this.state.targetTemperature}`,
         this.state.targetHeatingCoolingState,
         this.state.currentHeatingCoolingState,
         this.thresholds
@@ -58,7 +59,7 @@ export class Thermostat {
 
       switch (this.state.targetHeatingCoolingState) {
         case HeatingCoolingStateEnum.OFF:
-          console.debug('targetHeatingCoolingState is OFF, set current state to OFF');
+          this.platform.logger.debug('targetHeatingCoolingState is OFF, set current state to OFF');
           this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState;
 
           // If any relais is still powered on, turn them off
@@ -66,45 +67,45 @@ export class Thermostat {
           return;
 
         case HeatingCoolingStateEnum.HEAT:
-          console.debug('targetHeatingCoolingState is HEAT, check if currently heating');
-          if (this.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
-            console.debug('system is currently cooling, turn off COOL');
+          this.platform.logger.debug('targetHeatingCoolingState is HEAT, check if currently heating');
+          if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
+            this.platform.logger.debug('system is currently cooling, turn off COOL');
             this.relais.activate(SwitchTypeEnum.NONE);
           }
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
             // The system is currently heating, check if we need to shutdown heater for reaching maximum temperature
-            console.debug('Check if target temperature has not been reached');
+            this.platform.logger.debug('Check if target temperature has not been reached');
             if (this.CurrentTemperature >= this.thresholds.heatingMax) {
-              console.debug('turn off heating since target has been reached, don\'t change target');
+              this.platform.logger.debug('turn off heating since target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.NONE);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
                 this.retries = 0;
               } catch {
-                console.error('Error while turning off the heater, try again next cycle.');
+                this.platform.logger.error('Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
             }
           } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-            console.debug('Check if temperature has dropped below acceptable temperature range');
+            this.platform.logger.debug('Check if temperature has dropped below acceptable temperature range');
             if (this.state.currentTemperature <= this.thresholds.heatingMin) {
-              console.debug('turn on heating since min target has been reached, don\'t change target');
+              this.platform.logger.debug('turn on heating since min target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.HEAT);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
                 this.retries = 0;
               } catch {
-                console.error('Error while turning off the heater, try again next cycle.');
+                this.platform.logger.error('Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
             } else if (this.CurrentTemperature <= this.TargetTemperature) {
-              console.debug('turn on heating since current temperature is below the target temperature');
+              this.platform.logger.debug('turn on heating since current temperature is below the target temperature');
               try {
                 this.relais.activate(SwitchTypeEnum.HEAT);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
                 this.retries = 0;
               } catch {
-                console.error('Error while turning off the heater, try again next cycle.');
+                this.platform.logger.error('Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
             }
@@ -112,31 +113,31 @@ export class Thermostat {
           return;
 
         case HeatingCoolingStateEnum.COOL:
-          console.debug('Target is cooling, check if currently cooling');
+          this.platform.logger.debug('Target is cooling, check if currently cooling');
           this.relais.activate(SwitchTypeEnum.NONE);
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
-            console.debug('Check if target temperature has been reached');
+            this.platform.logger.debug('Check if target temperature has been reached');
             if (this.CurrentTemperature <= this.thresholds.coolingMin) {
-              console.debug('turn off cooling since target has been reached, don\'t change target');
+              this.platform.logger.debug('turn off cooling since target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.NONE);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
                 this.retries = 0;
               } catch {
-                console.error('Error while turning off the heater, try again next cycle.');
+                this.platform.logger.error('Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
             }
           } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-            console.debug('check if maximum temperature has been reached');
+            this.platform.logger.debug('check if maximum temperature has been reached');
             if (this.state.currentTemperature >= this.thresholds.coolingMax) {
-              console.debug('turn on heating since min target has been reached, don\'t change target');
+              this.platform.logger.debug('turn on heating since min target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.COOL);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL;
                 this.retries = 0;
               } catch {
-                console.error('Error while turning off the cooling, try again next cycle.');
+                this.platform.logger.error('Error while turning off the cooling, try again next cycle.');
                 this.retries++;
               }
             }
@@ -148,18 +149,18 @@ export class Thermostat {
           return;
       }
     } catch (err) {
-      console.error('error while updating relais state', err);
+      this.platform.logger.error('error while updating relais state', err);
     } finally {
-      console.debug(`finished running evaluateChanges()`, 'retries:', this.retries);
+      this.platform.logger.debug(`finished running evaluateChanges()`, 'retries:', this.retries);
       if (this.retries > 5) {
-        console.error(`Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
+        this.platform.logger.error(`Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
       }
 
-      const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.config)));
+      const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.platform.config)));
       if (writeOk) {
-        console.debug('successfully saved current state in config');
+        this.platform.logger.debug('successfully saved current state in config');
       } else {
-        console.error('Error while trying to save current config to disk!');
+        this.platform.logger.error('Error while trying to save current config to disk!');
       }
     }
   }
@@ -181,11 +182,11 @@ export class Thermostat {
   }
 
   private get state(): ThermostatState {
-    return this.config.thermostatState;
+    return this.platform.config.thermostatState;
   }
 
   private set state(value: ThermostatState) {
-    this.config.thermostatState = value;
+    this.platform.config.thermostatState = value;
   }
 
   public get State(): ThermostatState {
