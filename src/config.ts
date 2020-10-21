@@ -43,6 +43,7 @@ export class ConfigService extends EventEmitter {
 
           this.platform.logger.log(`Platform.init() -- './config.json' Buffer is ok.`);
           this.emit('initialized', config);
+          return;
         } else {
           this.platform.logger.warn(`ConfigService.initialize() -- checkBuffer config failed!`);
         }

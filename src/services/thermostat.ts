@@ -2,13 +2,13 @@ import { fetch } from 'cross-fetch';
 import { FileSystem } from './filesystem';
 import { Platform } from '../platform';
 import { IRelaisSwitch, Relais, SwitchTypeEnum } from '../relais/relais';
-import { OpenWeatherMapResponse, WeatherInfo } from './weather-info';
+import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info';
 
 export class Thermostat {
   private platform: Platform;
   private uuid = '6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a';
   private relais: Relais;
-  private weatherInfo: WeatherInfo;
+  private weatherInfo: WeatherInfoService;
   private retries = 0;
   private currentForecast: OpenWeatherMapResponse;
 
@@ -24,7 +24,7 @@ export class Thermostat {
       this.platform.config.relais.switches = switches;
     });
 
-    this.weatherInfo = new WeatherInfo(this.platform.config.weatherMapApiKey);
+    this.weatherInfo = new WeatherInfoService(this.platform);
     this.weatherInfo.on('forecast', (forecast: OpenWeatherMapResponse) => {
       this.platform.logger.log(`Thermostat.weatherInfo.on('forecast')`, forecast);
       this.currentForecast = forecast;
@@ -156,12 +156,12 @@ export class Thermostat {
         this.platform.logger.error(`Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
       }
 
-      const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.platform.config)));
-      if (writeOk) {
-        this.platform.logger.debug('successfully saved current state in config');
-      } else {
-        this.platform.logger.error('Error while trying to save current config to disk!');
-      }
+      // const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.platform.config)));
+      // if (writeOk) {
+      //   this.platform.logger.debug('successfully saved current state in config');
+      // } else {
+      //   this.platform.logger.error('Error while trying to save current config to disk!');
+      // }
     }
   }
 

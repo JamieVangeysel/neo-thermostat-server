@@ -77,7 +77,7 @@ export class LogEntry {
     if (this.logWithDate) {
       ret = this.entryDate.toISOString() + ' - ';
     }
-    ret += 'Type: ' + LogLevel[this.level];
+    ret += 'Type: ' + LogLevel[this.level].padEnd(5, ' ');
     ret += ' - Message: ' + this.message;
     if (this.extraInfo.length) {
       ret += ' - Extra Info: '

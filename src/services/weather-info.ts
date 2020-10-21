@@ -1,19 +1,26 @@
 import { fetch } from 'cross-fetch';
 import { EventEmitter } from 'events';
-import { Logger } from '../logging/logger';
-const logger = new Logger();
+import { Platform } from '../platform';
 
-export class WeatherInfo extends EventEmitter {
-  private apiKey: string;
+export class WeatherInfoService extends EventEmitter {
+  private platform: Platform;
 
-  constructor(apiKey: string) {
+  constructor(platform: Platform) {
     super();
-    this.apiKey = apiKey;
 
-    this.startInterval();
+    this.platform = platform;
+    this.platform.logger.log(`WeatherInfoService() -- start`);
+    if (platform.config.weatherMapApiKey && platform.config.weatherMapApiKey.trim().length > 0) {
+      this.platform.logger.log(`WeatherInfoService() -- has weatherMapApiKey, start interval`);
+      this.startInterval();
+    } else {
+      this.platform.logger.log(`WeatherInfoService() -- no weatherMapApiKey configured, skip `);
+    }
+    this.platform.logger.log(`WeatherInfoService() -- end`);
   }
 
   private async startInterval() {
+    this.platform.logger.log(`WeatherInfoService.startInterval() -- start`);
     try {
       const forecast = await this.getForecast('Hasselt,be');
       this.emit('forecast', forecast);
@@ -29,11 +36,13 @@ export class WeatherInfo extends EventEmitter {
         this.emit('error', err);
       }
     }, 300000);
+    this.platform.logger.log(`WeatherInfoService.startInterval() -- end`);
   }
 
   // query => Hasselt,be
   private async getForecast(query: string): Promise<OpenWeatherMapResponse> {
-    const resp: any = await fetch(`https://api.openweathermap.org/data/2.5/weather?APPID=${this.apiKey}&units=metric&q=${query}`);
+    this.platform.logger.log(`WeatherInfoService.getForecast() -- start`, query);
+    const resp: any = await fetch(`https://api.openweathermap.org/data/2.5/weather?APPID=${this.platform.config.weatherMapApiKey}&units=metric&q=${query}`);
     return await resp.json();
   }
 }

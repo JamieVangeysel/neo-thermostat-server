@@ -36,6 +36,7 @@ export class Relais extends EventEmitter {
     const relaisResult = await fetch(`${this.platform.config.relais.secure ? 'https' : 'http'}://${this.platform.config.relais.hostname}/state`);
     this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`);
     const relaisStates: boolean[] = (await relaisResult.json()).status;
+    this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates);
 
     for (let i = 0; i < relaisStates.length; i++) {
       this.platform.config.relais.switches[i].active = relaisStates[i];
