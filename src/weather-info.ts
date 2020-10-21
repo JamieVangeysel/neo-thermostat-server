@@ -1,3 +1,4 @@
+import { fetch } from 'cross-fetch';
 import { EventEmitter } from 'events';
 
 export class WeatherInfo extends EventEmitter {

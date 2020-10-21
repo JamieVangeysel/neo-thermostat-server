@@ -1,3 +1,4 @@
+import { fetch } from 'cross-fetch';
 import { EventEmitter } from 'events';
 import { Logger } from '../logging/logger';
 const logger = new Logger();

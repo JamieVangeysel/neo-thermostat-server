@@ -34,6 +34,7 @@ export class Logger {
     // return;
     if (this.shouldLog(level)) {
       const entry: LogEntry = new LogEntry();
+      entry.entryDate = new Date();
       entry.message = msg;
       entry.level = level;
       entry.extraInfo = params;
@@ -74,7 +75,7 @@ export class LogEntry {
     let ret = '';
 
     if (this.logWithDate) {
-      ret = new Date() + ' - ';
+      ret = this.entryDate.toISOString() + ' - ';
     }
     ret += 'Type: ' + LogLevel[this.level];
     ret += ' - Message: ' + this.message;
