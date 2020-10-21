@@ -1,4 +1,6 @@
 import { EventEmitter } from 'events';
+import { Logger } from '../logging/logger';
+const logger = new Logger();
 
 export class Relais extends EventEmitter {
   private hostname: string;
@@ -14,27 +16,39 @@ export class Relais extends EventEmitter {
   }
 
   activate(type: SwitchTypeEnum) {
+    logger.log(`Relais.activate() -- start`, type);
     const onSwitches = this.switches.filter(e => e.type === type);
     const offSwitches = this.switches.filter(e => e.type !== type);
+    logger.log(`Relais.activate() -- filtered on and off lists`, onSwitches, offSwitches);
 
     offSwitches.forEach(async (e) => {
+      logger.log(`Relais.activate() -- this.setState(${e.pinIndex}, SwitchStateEnum.OFF)`);
       await this.setState(e, SwitchStateEnum.OFF);
     });
 
     onSwitches.forEach(async (e) => {
+      logger.log(`Relais.activate() -- this.setState(${e.pinIndex}, SwitchStateEnum.ON)`);
       await this.setState(e, SwitchStateEnum.ON);
     });
+    logger.log(`Relais.activate() -- end`);
   }
 
   private async setState(relais: IRelaisSwitch, state: SwitchStateEnum) {
+    logger.log(`Relais.setState() -- start`, relais, state);
     // check the current state of pinIndex
     if (relais.active && state === SwitchStateEnum.ON) {
-      // relais is currently ON and wants to be switched to ON so skip request.
+      logger.log(`Relais.setState() -- relais is currently ON and needs to be switched ON so skip request.`);
     } else if (!relais.active && state === SwitchStateEnum.OFF) {
-      // relais is currently OFF and wants to be switched to OFF so skip request.
+      logger.log(`Relais.setState() -- relais is currently OFF and needs to be switched OFF so skip request.`);
     } else {
+      if (relais.active) {
+        logger.log(`Relais.setState() -- relais is currently ON and needs to be switched OFF`, relais.pinIndex);
+      } else {
+        logger.log(`Relais.setState() -- relais is currently OFF and needs to be switched ON`, relais.pinIndex);
+      }
       await fetch(`${this.secure ? 'https' : 'http'}://${this.hostname}/${relais.pinIndex}/${state}`);
     }
+    logger.log(`Relais.setState() -- end`);
   }
 }
 
