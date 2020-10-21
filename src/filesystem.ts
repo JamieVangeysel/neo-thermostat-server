@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { IRelais } from './relais/relais';
 import { ThermostatState } from './thermostat';
 
 export class FileSystem {
@@ -116,8 +117,6 @@ export class FileSystem {
     return obj;
   }
 
-
-
   public checkBuffer(buffer: Buffer): IConfig {
     if (buffer) {
       console.debug(`checkBuffer() -- buffer is not null.`);
@@ -125,8 +124,8 @@ export class FileSystem {
       try {
         const configObj: IConfig = JSON.parse(configText);
         console.debug(`checkBuffer() -- buffer is JSON.`);
-        if (configObj && configObj.hostname && configObj.port && configObj.thermostatState) {
-          console.debug(`checkBuffer() -- config has needed values.`);
+        if (configObj) {
+          console.debug(`checkBuffer() -- config is instance.`);
           return configObj;
         }
         console.debug(`checkBuffer() -- config does not contain required keys.`);
@@ -140,8 +139,10 @@ export class FileSystem {
 }
 
 export interface IConfig {
+  version: number;
   hostname: string;
   port: number;
+  relais: IRelais;
   weatherMapApiKey: string;
   thermostatState: ThermostatState;
 }

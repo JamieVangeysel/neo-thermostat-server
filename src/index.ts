@@ -1,5 +1,6 @@
 import { FileSystem, IConfig } from './filesystem';
 import { HttpListener } from './http-listener';
+import { SwitchTypeEnum } from './relais/relais';
 import { Thermostat, HeatingCoolingStateEnum, TemperatureDisplayUnits } from './thermostat';
 
 
@@ -27,9 +28,23 @@ const main = async (debug?: boolean): Promise<boolean> => {
       } else {
         // create file with default config attached
         const defaultConfig: IConfig = {
+          version: 2,
           hostname: 'localhost',
           port: 8080,
           weatherMapApiKey: '',
+          relais: {
+            hostname: '',
+            secure: false,
+            switches: [{
+              pinIndex: 1,
+              type: SwitchTypeEnum.COOL,
+              active: false
+            }, {
+              pinIndex: 2,
+              type: SwitchTypeEnum.HEAT,
+              active: false
+            }]
+          },
           thermostatState: {
             currentTemperature: 0,
             targetTemperature: 20,

@@ -1,9 +1,11 @@
 import { fetch } from 'cross-fetch';
 import { FileSystem, IConfig } from './filesystem';
+import { Relais } from './relais/relais';
 
 export class Thermostat {
   private config: IConfig;
   private uuid = '6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a';
+  private relais: Relais;
 
   private relaisIp = '192.168.0.164';
   private retries = 0;
