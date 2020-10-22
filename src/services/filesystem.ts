@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { IConfig } from '../config';
+import { IConfig } from './config';
 import { Logger } from '../logging/logger';
 const logger = new Logger();
 

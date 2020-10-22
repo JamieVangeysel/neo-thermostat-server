@@ -42,6 +42,8 @@ export class Thermostat {
       const data = (await result.json()) as DeviceReponse;
 
       this.state.currentTemperature = data.temperature;
+      this.state.currentRelativeHumidity = data.humidity;
+      this.platform.logger.log('HeatIndex', this.HeatIndex);
       await this.evaluateChanges();
     } catch (err) {
       this.platform.logger.error('error while running getSensorData();', err);
@@ -87,7 +89,7 @@ export class Thermostat {
               }
             }
           } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-            this.platform.logger.debug('Check if temperature has dropped below acceptable temperature range');
+            this.platform.logger.debug('Check if temperature has Driftped below acceptable temperature range');
             if (this.state.currentTemperature <= this.thresholds.heatingMin) {
               this.platform.logger.debug('turn on heating since min target has been reached, don\'t change target');
               try {
@@ -169,7 +171,30 @@ export class Thermostat {
     return `https://simplintho-neo-dev.azurewebsites.net/devices/${this.uuid}`;
   }
 
-  private get thresholds(): HeatingThresholds {
+  private get thresholds(): TemperatureThresholds {
+    // 5.2.3.3.2
+    if (this.currentForecast) {
+      // We have forecast data, we will add this data to out calculation to ensure nicer living conditions
+      // temperature sensor heights .1m, .6m, 1.1m, 1.7m
+
+      const minFloorTemp = 19;
+      const maxFloorTemp = 29;
+      const maxTemperatureDelta = 1.1;
+      // Temperature drift(ramp) max
+      const maxQuarterTemperatureDrift = 1.1;
+      const maxHalfHourTemperatureDrift = 1.7;
+      const maxOneHourTemperatureDrift = 2.2;
+      const maxTwoHourTemperatureDrift = 2.8;
+      const maxFourHourTemperatureDrift = 3.3;
+
+    } else {
+      // There is no forecast data, apiKey is not set or there are connection issues.
+    }
+    // const range = 0.8;
+    // const setTemp = this.TargetTemperature + (this.outsideWeather.main.temp * 0.0633);
+    // const tempLow = this.CurrentTemperature <= (setTemp - range);
+    // const tempHigh = this.CurrentTemperature > (setTemp + range);
+
     // calculate min and max HEAT and COOL thresholds based on target temperature.
     // Later we will add integrations with outside temperature, humidity and history
     // cool down and warm up periods and future weather forecast
@@ -179,6 +204,14 @@ export class Thermostat {
       coolingMax: this.TargetTemperature + 0.5,
       coolingMin: this.TargetTemperature - 1.0
     };
+  }
+
+  private get HeatIndex(): number {
+    const T = (this.CurrentTemperature * 1.8) + 32;
+    const RH = this.CurrentRelativeHumidity;
+    const HI = -42.379 + 2.04901523 * T + 10.14333127 * RH - .22475541 * T * RH - .00683783 * T * T - .05481717 * RH * RH + .00122874 * T * T * RH + .00085282 * T * RH * RH - .00000199 * T * T * RH * RH;
+
+    return (HI / 1.8) - 32;
   }
 
   private get state(): ThermostatState {
@@ -195,6 +228,10 @@ export class Thermostat {
 
   public get CurrentTemperature(): number {
     return this.state.currentTemperature;
+  }
+
+  public get CurrentRelativeHumidity(): number {
+    return this.state.currentRelativeHumidity;
   }
 
   public get TargetTemperature(): number {
@@ -222,13 +259,14 @@ export class Thermostat {
 
 export interface ThermostatState {
   currentTemperature: number;
+  currentRelativeHumidity: number;
   targetTemperature: number;
   currentHeatingCoolingState: HeatingCoolingStateEnum;
   targetHeatingCoolingState: HeatingCoolingStateEnum;
   temperatureDisplayUnits: TemperatureDisplayUnits;
 }
 
-export interface HeatingThresholds {
+export interface TemperatureThresholds {
   heatingMin: number;
   heatingMax: number;
   coolingMin: number;

@@ -1,7 +1,7 @@
 import { HttpListener } from './services/http-listener';
 import { Logger } from './logging/logger';
 import { Thermostat } from './services/thermostat';
-import { ConfigService, IConfig } from './config';
+import { ConfigService, IConfig } from './services/config';
 
 export class Platform {
   logger = new Logger();

@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
-import { Platform } from './platform';
-import { IRelais, SwitchTypeEnum } from './relais/relais';
-import { FileSystem } from './services/filesystem';
-import { HeatingCoolingStateEnum, TemperatureDisplayUnits, ThermostatState } from './services/thermostat';
+import { Platform } from '../platform';
+import { IRelais, SwitchTypeEnum } from '../relais/relais';
+import { FileSystem } from './filesystem';
+import { HeatingCoolingStateEnum, TemperatureDisplayUnits, ThermostatState } from './thermostat';
 const filesystem = new FileSystem();
 
 export class ConfigService extends EventEmitter {
