@@ -209,9 +209,10 @@ export class Thermostat {
   private get HeatIndex(): number {
     const T = (this.CurrentTemperature * 1.8) + 32;
     const RH = this.CurrentRelativeHumidity;
+    // tslint:disable-next-line: max-line-length
     const HI = -42.379 + 2.04901523 * T + 10.14333127 * RH - .22475541 * T * RH - .00683783 * T * T - .05481717 * RH * RH + .00122874 * T * T * RH + .00085282 * T * RH * RH - .00000199 * T * T * RH * RH;
 
-    return (HI / 1.8) - 32;
+    return (HI - 32) / 1.8;
   }
 
   private get state(): ThermostatState {
