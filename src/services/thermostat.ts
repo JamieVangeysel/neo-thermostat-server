@@ -206,6 +206,8 @@ export class Thermostat {
     };
   }
 
+  // https://www.wrh.noaa.gov/psr/general/safety/heat/heatindex.png
+  // https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
   private get HeatIndex(): number {
     const T = (this.CurrentTemperature * 1.8) + 32;
     const RH = this.CurrentRelativeHumidity;
