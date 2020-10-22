@@ -82,6 +82,7 @@ export class ConfigService extends EventEmitter {
       thermostatState: {
         currentTemperature: 0,
         targetTemperature: 20,
+        currentRelativeHumidity: 50,
         currentHeatingCoolingState: HeatingCoolingStateEnum.OFF,
         targetHeatingCoolingState: HeatingCoolingStateEnum.OFF,
         temperatureDisplayUnits: TemperatureDisplayUnits.CELSIUS
