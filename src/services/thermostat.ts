@@ -209,10 +209,22 @@ export class Thermostat {
   private get HeatIndex(): number {
     const T = (this.CurrentTemperature * 1.8) + 32;
     const RH = this.CurrentRelativeHumidity;
-    // tslint:disable-next-line: max-line-length
-    const HI = -42.379 + 2.04901523 * T + 10.14333127 * RH - .22475541 * T * RH - .00683783 * T * T - .05481717 * RH * RH + .00122874 * T * T * RH + .00085282 * T * RH * RH - .00000199 * T * T * RH * RH;
+    let ADJUSTMENT = 0;
+    let HI = 0.5 * (T + 61.0 + ((T - 68.0) * 1.2) + (RH * 0.094));
 
-    return (HI - 32) / 1.8;
+    if ((HI + T) / 2 >= 80) {
+      if (T >= 80 && T <= 112 && RH <= 13) {
+        // tslint:disable-next-line: max-line-length
+        HI = -42.379 + 2.04901523 * T + 10.14333127 * RH - .22475541 * T * RH - .00683783 * T * T - .05481717 * RH * RH + .00122874 * T * T * RH + .00085282 * T * RH * RH - .00000199 * T * T * RH * RH;
+        ADJUSTMENT = -1 * (((13 - RH) / 4) * Math.sqrt((17 - Math.abs(T - 95.)) / 17));
+      } else if (T >= 80 && T <= 87 && RH >= 85) {
+        // tslint:disable-next-line: max-line-length
+        HI = -42.379 + 2.04901523 * T + 10.14333127 * RH - .22475541 * T * RH - .00683783 * T * T - .05481717 * RH * RH + .00122874 * T * T * RH + .00085282 * T * RH * RH - .00000199 * T * T * RH * RH;
+        ADJUSTMENT = ((RH - 85) / 10) * ((87 - T) / 5);
+      }
+    }
+
+    return ((HI - 32) / 1.8) + ADJUSTMENT;
   }
 
   private get state(): ThermostatState {
