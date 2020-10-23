@@ -176,16 +176,26 @@ export class Thermostat {
     if (this.currentForecast) {
       // We have forecast data, we will add this data to out calculation to ensure nicer living conditions
       // temperature sensor heights .1m, .6m, 1.1m, 1.7m
+      // vertical temp difference
+      const tempVerticalDeltaStanding = 4.0;
+      const tempVerticalDeltaSitting = 3.0;
+
+      // fan speed calculations for temperature
+      const maxFanSpeed = 0.8; // at temperature 25.5
+      const minFanSpeed = 0.15; // at temperature 22.5
+
+      const V = 50.49 - (4.4047 * this.CurrentTemperature) + (0.096425 * Math.pow(this.CurrentTemperature, 2));
+      console.log(V);
 
       const minFloorTemp = 19;
       const maxFloorTemp = 29;
       const maxTemperatureDelta = 1.1;
       // Temperature drift(ramp) max
-      const maxQuarterTemperatureDrift = 1.1;
-      const maxHalfHourTemperatureDrift = 1.7;
-      const maxOneHourTemperatureDrift = 2.2;
-      const maxTwoHourTemperatureDrift = 2.8;
-      const maxFourHourTemperatureDrift = 3.3;
+      const maxQuarterTemperatureDelta = 1.1;
+      const maxHalfHourTemperatureDelta = 1.7;
+      const maxOneHourTemperatureDelta = 2.2;
+      const maxTwoHourTemperatureDelta = 2.8;
+      const maxFourHourTemperatureDelta = 3.3;
 
     } else {
       // There is no forecast data, apiKey is not set or there are connection issues.
