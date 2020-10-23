@@ -8,6 +8,7 @@ const main = (debug?: boolean): Promise<boolean> => {
   return new Promise<boolean>((resolve, reject) => {
     try {
       platform = new Platform();
+      // created platform
       resolve(true);
     } catch (err) {
       reject(err);
