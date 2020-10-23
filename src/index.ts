@@ -4,8 +4,8 @@ let platform: Platform;
 /**
  * @description: this is the entry point of the program, return true if the application started
  */
-const main = async (debug?: boolean): Promise<boolean> => {
-  return new Promise<boolean>(async (resolve, reject) => {
+const main = (debug?: boolean): Promise<boolean> => {
+  return new Promise<boolean>((resolve, reject) => {
     try {
       platform = new Platform();
       // created platform

@@ -1,5 +1,5 @@
 import { HttpListener } from './services/http-listener';
-import { Logger } from './logging/logger';
+import { Logger } from './services/logging/logger';
 import { Thermostat } from './services/thermostat';
 import { ConfigService, IConfig } from './services/config';
 

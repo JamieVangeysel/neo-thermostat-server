@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { Platform } from '../platform';
-import { IRelais, SwitchTypeEnum } from '../relais/relais';
+import { IRelais, SwitchTypeEnum } from './relais';
 import { FileSystem } from './filesystem';
 import { HeatingCoolingStateEnum, TemperatureDisplayUnits, ThermostatState } from './thermostat';
 const filesystem = new FileSystem();
@@ -19,10 +19,10 @@ export class ConfigService extends EventEmitter {
 
     const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(config)));
     if (writeOk) {
-      this.platform.logger.log(`ConfigService.save() -- write defaultConfig to './config.json' ok.`);
+      this.platform.logger.log(`ConfigService.save() -- write config to './config.json' ok.`);
       this.emit('saved', config);
     } else {
-      this.platform.logger.warn(`ConfigService.save() -- write defaultConfig to './config.json' failed.`);
+      this.platform.logger.warn(`ConfigService.save() -- write config to './config.json' failed.`);
     }
 
     this.platform.logger.log(`ConfigService.save() -- end`);
@@ -88,6 +88,7 @@ export class ConfigService extends EventEmitter {
         temperatureDisplayUnits: TemperatureDisplayUnits.CELSIUS
       }
     };
+
     this.platform.logger.log(`ConfigService.createDefaultConfig() -- write defaultConfig to './config.json'`);
     const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(defaultConfig)));
     if (writeOk) {

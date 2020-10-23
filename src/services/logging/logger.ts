@@ -5,27 +5,27 @@ export class Logger {
   constructor() {
   }
 
-  log(message?: string, ...optionalParams: any[]) {
+  log(message: string, ...optionalParams: any[]) {
     this.writeToLog(message, LogLevel.All, optionalParams);
   }
 
-  debug(message?: string, ...optionalParams: any[]) {
+  debug(message: string, ...optionalParams: any[]) {
     this.writeToLog(message, LogLevel.Debug, optionalParams);
   }
 
-  info(message?: string, ...optionalParams: any[]) {
+  info(message: string, ...optionalParams: any[]) {
     this.writeToLog(message, LogLevel.Info, optionalParams);
   }
 
-  warn(message?: string, ...optionalParams: any[]) {
+  warn(message: string, ...optionalParams: any[]) {
     this.writeToLog(message, LogLevel.Warn, optionalParams);
   }
 
-  error(message?: string, ...optionalParams: any[]) {
+  error(message: string, ...optionalParams: any[]) {
     this.writeToLog(message, LogLevel.Error, optionalParams);
   }
 
-  fatal(message?: string, ...optionalParams: any[]) {
+  fatal(message: string, ...optionalParams: any[]) {
     this.writeToLog(message, LogLevel.Fatal, optionalParams);
   }
 
