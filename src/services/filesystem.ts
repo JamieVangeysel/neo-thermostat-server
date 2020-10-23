@@ -1,16 +1,16 @@
 import * as fs from 'fs';
-import { IConfig } from '../config';
-import { Logger } from '../logging/logger';
+import { IConfig } from './config';
+import { Logger } from './logging/logger';
 const logger = new Logger();
 
 export class FileSystem {
   /**
-   * Returns true if the path exists, promise will be rejected on error.
+   * Check if path exists and is accessible, promise will be rejected on error.
    * @param path The path to verify.
    */
   public exists(path: string): Promise<boolean> {
     logger.debug(`FileSystem.exists() -- start`);
-    return new Promise<boolean>((resolve: (value) => void, reject: (err) => void) => {
+    return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
       try {
         fs.access(path, (err) => {
           if (!err) {
@@ -28,17 +28,22 @@ export class FileSystem {
   }
 
   /**
-   *
+   * Read file contents and returns Buffer
    * @param path The path to the file.
    */
   public readFile(path: string): Promise<Buffer> {
     logger.debug(`FileSystem.readFile() -- start`);
-    return new Promise<any>((resolve, reject) => {
-      fs.readFile(path, (err, data) => {
-        if (err) { reject(err); }
-        logger.debug(`FileSystem.readFile() -- ok`);
-        resolve(data);
-      });
+    return new Promise<any>((resolve: (value: Buffer) => void, reject: (err: Error) => void) => {
+      try {
+        fs.readFile(path, (err, data) => {
+          if (err) { reject(err); }
+          logger.debug(`FileSystem.readFile() -- ok`);
+          resolve(data);
+        });
+      } catch (err) {
+        logger.error(`FileSystem.writeFile() -- err ${err}`);
+        reject(err);
+      }
     });
   }
 
@@ -49,7 +54,7 @@ export class FileSystem {
    */
   public writeFile(path: string, bytes: Buffer): Promise<boolean> {
     logger.debug(`FileSystem.writeFile() -- start`);
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
       try {
         fs.writeFile(path, bytes, (err) => {
           if (err) { resolve(false); }
@@ -70,7 +75,7 @@ export class FileSystem {
    */
   public writeAppendFile(path: string, bytes: Buffer): Promise<boolean> {
     logger.debug(`FileSystem.writeAppendFile() -- start`);
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<any>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
       try {
         fs.appendFile(path, bytes, (err) => {
           if (err) { resolve(false); }
@@ -90,7 +95,7 @@ export class FileSystem {
    */
   public delete(path: string): Promise<boolean> {
     logger.debug(`FileSystem.delete() -- start`);
-    return new Promise<boolean>((resolve, reject) => {
+    return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
       try {
         fs.unlink(path, (err) => {
           if (err) { resolve(false); }
@@ -126,7 +131,7 @@ export class FileSystem {
         const configObj: IConfig = JSON.parse(configText);
         logger.debug(`checkBuffer() -- buffer is JSON.`);
         if (configObj && configObj.version >= 2) {
-          logger.debug(`checkBuffer() -- config is instance.`);
+          logger.debug(`checkBuffer() -- config is instance and version is correct.`);
           return configObj;
         }
         logger.debug(`checkBuffer() -- config does not contain required keys.`);

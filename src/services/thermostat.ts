@@ -1,7 +1,7 @@
 import { fetch } from 'cross-fetch';
 import { FileSystem } from './filesystem';
 import { Platform } from '../platform';
-import { IRelaisSwitch, Relais, SwitchTypeEnum } from '../relais/relais';
+import { IRelaisSwitch, Relais, SwitchTypeEnum } from './relais';
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info';
 
 export class Thermostat {

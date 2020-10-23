@@ -1,19 +1,14 @@
 import { Platform } from './platform';
-import { FileSystem } from './services/filesystem';
 let platform: Platform;
-const filesystem = new FileSystem();
 
 /**
  * @description: this is the entry point of the program, return true if the application started
  */
-const main = async (debug?: boolean): Promise<boolean> => {
-  return new Promise<boolean>(async (resolve, reject) => {
+const main = (debug?: boolean): Promise<boolean> => {
+  return new Promise<boolean>((resolve, reject) => {
     try {
-      const fileExists: boolean = await filesystem.exists('./config.json');
-
       platform = new Platform();
-      // created platform
-      resolve(fileExists);
+      resolve(true);
     } catch (err) {
       reject(err);
     }
