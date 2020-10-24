@@ -20,14 +20,15 @@ export class Platform {
 
   private async init(): Promise<void> {
     this.logger.log(`Platform.init() -- init`);
-    this.configService.on('initialized', (config: IConfig) => {
+    this.configService.on('initialized', async (config: IConfig) => {
       this.logger.log(`Platform.init() -- configService emitted initialized`);
       this.config = config;
       this.logger.log(`Platform.init() -- set config`);
+      this.database = new DatabaseService(this);
+      await this.database.init();
+      this.logger.log(`Platform.init() -- initialized new DatabaseService()`);
       const thermostat = new Thermostat(this);
       this.logger.log(`Platform.init() -- initialized new Thermostat()`);
-      this.database = new DatabaseService(this);
-      this.logger.log(`Platform.init() -- initialized new DatabaseService()`);
       this.http.configure(config.hostname, config.port, thermostat);
       this.logger.log(`Platform.init() -- configure http instance`);
     });

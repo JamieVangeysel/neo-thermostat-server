@@ -27,6 +27,14 @@ export class Thermostat {
     this.weatherInfo = new WeatherInfoService(this.platform);
     this.weatherInfo.on('forecast', (forecast: OpenWeatherMapResponse) => {
       this.platform.logger.log(`Thermostat.weatherInfo.on('forecast')`, forecast);
+      this.platform.database.insertIntoCollection('forecastHistory', {
+        date: new Date(),
+        forecast
+      }).then(ok => {
+        if (ok) {
+          this.platform.logger.log(`Thermostat.weatherInfo.on('forecast') -- Succesfully added forecast to forecastHistory in DB.`);
+        }
+      });
       this.currentForecast = forecast;
     });
 

@@ -15,21 +15,27 @@ export class DatabaseService {
     this.platform = platform;
     this.config = platform.config;
     this.url = this.dbUrl;
-
-    MongoClient.connect(this.url, {
-      useUnifiedTopology: true,
-      useNewUrlParser: true,
-    }, (connectErr, db) => {
-      if (connectErr) {
-        this.platform.logger.error(`DatabaseService.constructor() -- MongoClient.connect error: `, connectErr);
-        throw connectErr;
-      }
-      this.enabled = true;
-      this.platform.logger.debug(`DatabaseService.constructor() -- Client connected, created/openend database ${this.dbName}`);
-      db.close();
-      this.platform.logger.debug(`DatabaseService.constructor() -- Client closed db connection`);
-    });
     this.platform.logger.debug(`DatabaseService.constructor() -- end`);
+  }
+
+  async init() {
+    this.platform.logger.debug(`DatabaseService.init() -- start`);
+    return new Promise<void>((resolve: () => void, reject: (err: Error) => void) => {
+      MongoClient.connect(this.url, {
+        useUnifiedTopology: true,
+        useNewUrlParser: true,
+      }, (connectErr, db) => {
+        if (connectErr) {
+          this.platform.logger.error(`DatabaseService.init() -- MongoClient.connect error: `, connectErr);
+          return reject(connectErr);
+        }
+        this.enabled = true;
+        this.platform.logger.debug(`DatabaseService.init() -- Client connected, created/openend database ${this.dbName}`);
+        db.close();
+        this.platform.logger.debug(`DatabaseService.init() -- Client closed db connection`);
+        return resolve();
+      });
+    });
   }
 
   createCollection(collection: string): Promise<boolean> {
