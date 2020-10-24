@@ -66,7 +66,7 @@ export class ConfigService extends EventEmitter {
       hostname: 'localhost',
       port: 8080,
       weatherMapApiKey: '',
-      mongoDb: {
+      mongoDB: {
         url: '',
         db: '',
         username: '',
