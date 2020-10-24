@@ -171,8 +171,11 @@ export class Thermostat {
     return `https://simplintho-neo-dev.azurewebsites.net/devices/${this.uuid}`;
   }
 
+  // https://shop.hellowynd.com/products/halo-home-purifier-bundle
+  // https://airthinx.io/iaq/
   private get thresholds(): TemperatureThresholds {
     // 5.2.3.3.2
+
     if (this.currentForecast) {
       // We have forecast data, we will add this data to out calculation to ensure nicer living conditions
       // temperature sensor heights .1m, .6m, 1.1m, 1.7m
@@ -184,13 +187,28 @@ export class Thermostat {
       const maxFanSpeed = 0.8; // at temperature 25.5
       const minFanSpeed = 0.15; // at temperature 22.5
 
-      const V = 50.49 - (4.4047 * this.CurrentTemperature) + (0.096425 * Math.pow(this.CurrentTemperature, 2));
-      console.log(V);
+
+
+      const Ta = this.CurrentTemperature; // air temperature measured with dry bulb
+      const Tr = this.CurrentTemperature; // mean diant temperature
+
+      const v = 50.49 - (4.4047 * Ta) + (0.096425 * Math.pow(Ta, 2));
+      this.platform.logger.debug(`Desired fan speed: ${v}m/s.`);
+
+      // Operating temperature
+      let To: number;
+      if (v < 0.1) {
+        To = (Ta + Tr) / 2;
+      } else {
+        To = (Tr + (Ta * Math.sqrt(10 * v))) / (1 + Math.sqrt(10 * v));
+      }
+      this.platform.logger.debug(`Operating Temperature: ${To}`);
 
       const minFloorTemp = 19;
       const maxFloorTemp = 29;
-      const maxTemperatureDelta = 1.1;
-      // Temperature drift(ramp) max
+      // Maximum temperature delta during cycling temperature when cycle in 15minutes, otherwise use ramp stats
+      const maxTemperatureCycleDelta = 1.1;
+      // Temperature drift(ramp) max during warming up or cooling down.
       const maxQuarterTemperatureDelta = 1.1;
       const maxHalfHourTemperatureDelta = 1.7;
       const maxOneHourTemperatureDelta = 2.2;
@@ -209,10 +227,10 @@ export class Thermostat {
     // Later we will add integrations with outside temperature, humidity and history
     // cool down and warm up periods and future weather forecast
     return {
-      heatingMax: this.TargetTemperature + 1.0,
+      heatingMax: this.TargetTemperature + 0.6,
       heatingMin: this.TargetTemperature - 0.5,
       coolingMax: this.TargetTemperature + 0.5,
-      coolingMin: this.TargetTemperature - 1.0
+      coolingMin: this.TargetTemperature - 0.6
     };
   }
 

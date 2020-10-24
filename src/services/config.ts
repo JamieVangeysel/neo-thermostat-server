@@ -66,6 +66,12 @@ export class ConfigService extends EventEmitter {
       hostname: 'localhost',
       port: 8080,
       weatherMapApiKey: '',
+      mongoDb: {
+        url: '',
+        db: '',
+        username: '',
+        password: ''
+      },
       relais: {
         hostname: 'localhost',
         secure: false,
@@ -108,5 +114,13 @@ export interface IConfig {
   port: number;
   relais: IRelais;
   weatherMapApiKey: string;
+  mongoDb: ImongoDBConfig;
   thermostatState: ThermostatState;
+}
+
+export interface ImongoDBConfig {
+  url: string;
+  db: string;
+  username: string;
+  password: string;
 }
