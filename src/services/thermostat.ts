@@ -36,6 +36,8 @@ export class Thermostat {
         }
       });
       this.currentForecast = forecast;
+      this.platform.logger.log(`Outside heat index: `, this.calculateHeatIndex(forecast.main.temp, forecast.main.humidity));
+      this.platform.logger.log(`Outside wind chill factor: `, this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed));
     });
 
     // set update interval fur current temperature to 1 minute
@@ -176,6 +178,32 @@ export class Thermostat {
     }
   }
 
+  private calculateHeatIndex(temperature: number, relativeHumidity: number) {
+    const T = (temperature * 1.8) + 32;
+    const RH = relativeHumidity;
+    let ADJUSTMENT = 0;
+    let HI = 0.5 * (T + 61.0 + ((T - 68.0) * 1.2) + (RH * 0.094));
+
+    if ((HI + T) / 2 >= 80) {
+      // tslint:disable-next-line: max-line-length
+      HI = -42.379 + 2.04901523 * T + 10.14333127 * RH - .22475541 * T * RH - .00683783 * T * T - .05481717 * RH * RH + .00122874 * T * T * RH + .00085282 * T * RH * RH - .00000199 * T * T * RH * RH;
+
+      if (T >= 80 && T <= 112 && RH <= 13) {
+        ADJUSTMENT = -1 * (((13 - RH) / 4) * Math.sqrt((17 - Math.abs(T - 95.)) / 17));
+      } else if (T >= 80 && T <= 87 && RH >= 85) {
+        ADJUSTMENT = ((RH - 85) / 10) * ((87 - T) / 5);
+      }
+    }
+
+    return ((HI + ADJUSTMENT - 32) / 1.8);
+  }
+
+  private calculateWindChillFactor(temperature: number, velocity: number) {
+    const T = temperature;
+    const V = velocity * 3.6;
+    return 13.12 + (0.6215 * T) - 11.37 * Math.pow(V, 0.16) + (0.3965 * T) * Math.pow(V, 0.16);
+  }
+
   private get sensorUrl() {
     return `https://simplintho-neo-dev.azurewebsites.net/devices/${this.uuid}`;
   }
@@ -244,23 +272,7 @@ export class Thermostat {
   // https://www.wrh.noaa.gov/psr/general/safety/heat/heatindex.png
   // https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
   private get HeatIndex(): number {
-    const T = (this.CurrentTemperature * 1.8) + 32;
-    const RH = this.CurrentRelativeHumidity;
-    let ADJUSTMENT = 0;
-    let HI = 0.5 * (T + 61.0 + ((T - 68.0) * 1.2) + (RH * 0.094));
-
-    if ((HI + T) / 2 >= 80) {
-      // tslint:disable-next-line: max-line-length
-      HI = -42.379 + 2.04901523 * T + 10.14333127 * RH - .22475541 * T * RH - .00683783 * T * T - .05481717 * RH * RH + .00122874 * T * T * RH + .00085282 * T * RH * RH - .00000199 * T * T * RH * RH;
-
-      if (T >= 80 && T <= 112 && RH <= 13) {
-        ADJUSTMENT = -1 * (((13 - RH) / 4) * Math.sqrt((17 - Math.abs(T - 95.)) / 17));
-      } else if (T >= 80 && T <= 87 && RH >= 85) {
-        ADJUSTMENT = ((RH - 85) / 10) * ((87 - T) / 5);
-      }
-    }
-
-    return ((HI + ADJUSTMENT - 32) / 1.8);
+    return this.calculateHeatIndex(this.CurrentTemperature, this.CurrentRelativeHumidity);
   }
 
   private get state(): ThermostatState {
