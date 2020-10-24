@@ -252,7 +252,7 @@ export class Thermostat {
       }
     }
 
-    return ((HI - 32) / 1.8) + ADJUSTMENT;
+    return ((HI + ADJUSTMENT - 32) / 1.8);
   }
 
   private get state(): ThermostatState {
