@@ -16,7 +16,10 @@ export class DatabaseService {
     this.config = platform.config;
     this.url = this.dbUrl;
 
-    MongoClient.connect(this.url, (connectErr, db) => {
+    MongoClient.connect(this.url, {
+      useUnifiedTopology: true,
+      useNewUrlParser: true,
+    }, (connectErr, db) => {
       if (connectErr) {
         this.platform.logger.error(`DatabaseService.constructor() -- MongoClient.connect error: `, connectErr);
         throw connectErr;
@@ -32,7 +35,10 @@ export class DatabaseService {
   createCollection(collection: string): Promise<boolean> {
     return new Promise<boolean>((resolve: (result: boolean) => void, reject: (err: Error) => void) => {
       if (this.enabled) {
-        MongoClient.connect(this.url, (connectErr: Error, db: MongoClient) => {
+        MongoClient.connect(this.url, {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }, (connectErr: Error, db: MongoClient) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.createCollection() -- MongoClient.connect error: `, connectErr);
             reject(connectErr);
@@ -60,7 +66,10 @@ export class DatabaseService {
   insertIntoCollection(collection: string, document: any): Promise<boolean> {
     return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
       if (this.enabled) {
-        MongoClient.connect(this.url, (connectErr: Error, db: MongoClient) => {
+        MongoClient.connect(this.url, {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }, (connectErr: Error, db: MongoClient) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.insertIntoCollection() -- MongoClient.connect error: `, connectErr);
             reject(connectErr);
@@ -88,7 +97,10 @@ export class DatabaseService {
   findInCollection(collection: string, query: any): Promise<any> {
     return new Promise<any>((resolve: (value: any) => void, reject: (err: Error) => void) => {
       if (this.enabled) {
-        MongoClient.connect(this.url, (connectErr: Error, db: MongoClient) => {
+        MongoClient.connect(this.url, {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }, (connectErr: Error, db: MongoClient) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.findInCollection() -- MongoClient.connect error: `, connectErr);
             reject(connectErr);
@@ -115,7 +127,10 @@ export class DatabaseService {
   queryInCollection(collection: string, query: any): Promise<any[]> {
     return new Promise<any[]>((resolve: (value: any[]) => void, reject: (err: Error) => void) => {
       if (this.enabled) {
-        MongoClient.connect(this.url, (connectErr: Error, db: MongoClient) => {
+        MongoClient.connect(this.url, {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }, (connectErr: Error, db: MongoClient) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.queryInCollection() -- MongoClient.connect error: `, connectErr);
             reject(connectErr);
@@ -142,7 +157,10 @@ export class DatabaseService {
   deleteFromCollection(collection: string, query: any): Promise<boolean> {
     return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
       if (this.enabled) {
-        MongoClient.connect(this.url, (connectErr: Error, db: MongoClient) => {
+        MongoClient.connect(this.url, {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }, (connectErr: Error, db: MongoClient) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.deleteFromCollection() -- MongoClient.connect error: `, connectErr);
             reject(connectErr);
@@ -169,7 +187,10 @@ export class DatabaseService {
   updateInCollection(collection: string, query: any, values: any): Promise<boolean> {
     return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
       if (this.enabled) {
-        MongoClient.connect(this.url, (connectErr: Error, db: MongoClient) => {
+        MongoClient.connect(this.url, {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }, (connectErr: Error, db: MongoClient) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.updateInCollection() -- MongoClient.connect error: `, connectErr);
             reject(connectErr);
@@ -196,7 +217,10 @@ export class DatabaseService {
   dropCollection(collection: string): Promise<boolean> {
     return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
       if (this.enabled) {
-        MongoClient.connect(this.url, (connectErr: Error, db: MongoClient) => {
+        MongoClient.connect(this.url, {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }, (connectErr: Error, db: MongoClient) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.dropCollection() -- MongoClient.connect error: `, connectErr);
             reject(connectErr);
