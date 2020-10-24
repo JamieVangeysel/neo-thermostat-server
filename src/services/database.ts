@@ -11,7 +11,7 @@ export class DatabaseService {
   private enabled = false;
 
   constructor(platform: Platform) {
-    this.platform.logger.debug(`DatabaseService.constructor() -- start`);
+    platform.logger.debug(`DatabaseService.constructor() -- start`);
     this.platform = platform;
     this.config = platform.config;
     this.url = this.dbUrl;
@@ -22,7 +22,7 @@ export class DatabaseService {
         throw connectErr;
       }
       this.enabled = true;
-      this.platform.logger.debug(`DatabaseService.constructor() -- Client connected, created/openend database ${this.config.mongoDb.db}`);
+      this.platform.logger.debug(`DatabaseService.constructor() -- Client connected, created/openend database ${this.dbName}`);
       db.close();
       this.platform.logger.debug(`DatabaseService.constructor() -- Client closed db connection`);
     });
@@ -38,7 +38,7 @@ export class DatabaseService {
             reject(connectErr);
             return;
           }
-          const dbo = db.db(this.config.mongoDb.db);
+          const dbo = db.db(this.dbName);
 
           dbo.createCollection(collection, (createErr: Error) => {
             if (createErr) {
@@ -66,7 +66,7 @@ export class DatabaseService {
             reject(connectErr);
             return;
           }
-          const dbo = db.db(this.config.mongoDb.db);
+          const dbo = db.db(this.dbName);
 
           dbo.collection(collection).insertOne(document, (insertErr: Error) => {
             if (insertErr) {
@@ -94,7 +94,7 @@ export class DatabaseService {
             reject(connectErr);
             return;
           }
-          const dbo = db.db(this.config.mongoDb.db);
+          const dbo = db.db(this.dbName);
 
           dbo.collection(collection).findOne(query, (findErr, result) => {
             if (findErr) {
@@ -121,7 +121,7 @@ export class DatabaseService {
             reject(connectErr);
             return;
           }
-          const dbo = db.db(this.config.mongoDb.db);
+          const dbo = db.db(this.dbName);
 
           dbo.collection(collection).find(query).toArray((findErr, result) => {
             if (findErr) {
@@ -148,7 +148,7 @@ export class DatabaseService {
             reject(connectErr);
             return;
           }
-          const dbo = db.db(this.config.mongoDb.db);
+          const dbo = db.db(this.dbName);
 
           dbo.collection(collection).deleteOne(query, (findErr) => {
             if (findErr) {
@@ -175,7 +175,7 @@ export class DatabaseService {
             reject(connectErr);
             return;
           }
-          const dbo = db.db(this.config.mongoDb.db);
+          const dbo = db.db(this.dbName);
 
           dbo.collection(collection).updateOne(query, { $set: values }, (updateErr) => {
             if (updateErr) {
@@ -202,7 +202,7 @@ export class DatabaseService {
             reject(connectErr);
             return;
           }
-          const dbo = db.db(this.config.mongoDb.db);
+          const dbo = db.db(this.dbName);
 
           dbo.collection(collection).drop((dropErr: Error, ok: boolean) => {
             if (dropErr) {
@@ -220,10 +220,14 @@ export class DatabaseService {
     });
   }
 
+  private get dbName(): string {
+    return this.config.mongoDB.db;
+  }
+
   private get dbUrl(): string {
-    return this.config.mongoDb.url
-      .replace('{db}', this.config.mongoDb.db)
-      .replace('{username}', this.config.mongoDb.username)
-      .replace('{password}', this.config.mongoDb.password);
+    return this.config.mongoDB.url
+      .replace('{db}', this.config.mongoDB.db)
+      .replace('{username}', this.config.mongoDB.username)
+      .replace('{password}', this.config.mongoDB.password);
   }
 }

@@ -53,7 +53,8 @@ export class Thermostat {
   async evaluateChanges() {
     this.platform.logger.debug('start evaluateChanges()');
     try {
-      this.platform.logger.info(`Current temperature: ${this.state.currentTemperature}, target Temperature: ${this.state.targetTemperature}`,
+      this.platform.logger.info(`Current temperature: ${this.state.currentTemperature}`,
+        `target Temperature: ${this.state.targetTemperature}`,
         this.state.targetHeatingCoolingState,
         this.state.currentHeatingCoolingState,
         this.thresholds
@@ -158,12 +159,12 @@ export class Thermostat {
         this.platform.logger.error(`Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
       }
 
-      // const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.platform.config)));
-      // if (writeOk) {
-      //   this.platform.logger.debug('successfully saved current state in config');
-      // } else {
-      //   this.platform.logger.error('Error while trying to save current config to disk!');
-      // }
+      const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.platform.config)));
+      if (writeOk) {
+        this.platform.logger.debug('successfully saved current state in config');
+      } else {
+        this.platform.logger.error('Error while trying to save current config to disk!');
+      }
     }
   }
 
@@ -186,8 +187,6 @@ export class Thermostat {
       // fan speed calculations for temperature
       const maxFanSpeed = 0.8; // at temperature 25.5
       const minFanSpeed = 0.15; // at temperature 22.5
-
-
 
       const Ta = this.CurrentTemperature; // air temperature measured with dry bulb
       const Tr = this.CurrentTemperature; // mean diant temperature

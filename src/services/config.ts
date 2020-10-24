@@ -114,7 +114,7 @@ export interface IConfig {
   port: number;
   relais: IRelais;
   weatherMapApiKey: string;
-  mongoDb: ImongoDBConfig;
+  mongoDB: ImongoDBConfig;
   thermostatState: ThermostatState;
 }
 
