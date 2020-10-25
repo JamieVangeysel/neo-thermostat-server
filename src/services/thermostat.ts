@@ -11,6 +11,7 @@ export class Thermostat {
   private weatherInfo: WeatherInfoService;
   private retries = 0;
   private currentForecast: OpenWeatherMapResponse;
+  private temperatureHistory: { date: Date, temperature: number }[] = [];
 
   constructor(platform: Platform) {
     this.platform = platform;
@@ -53,10 +54,16 @@ export class Thermostat {
 
       this.state.currentTemperature = data.temperature;
       this.state.currentRelativeHumidity = data.humidity;
-      this.platform.logger.log('HeatIndex', this.HeatIndex);
+      this.platform.logger.log('Thermostat.getSensorData() -- HeatIndex', this.HeatIndex);
+
+      this.platform.logger.error('Thermostat.getSensorData() -- saving temperature into temperatureHistory');
+      this.temperatureHistory.push({
+        date: new Date(),
+        temperature: data.temperature
+      });
       await this.evaluateChanges();
     } catch (err) {
-      this.platform.logger.error('error while running getSensorData();', err);
+      this.platform.logger.error('Thermostat.getSensorData() -- error while running getSensorData();', err);
     }
   }
 
@@ -69,6 +76,8 @@ export class Thermostat {
         this.state.currentHeatingCoolingState,
         this.thresholds
       );
+
+      this.platform.logger.info(`Current temperature Delta's: ${JSON.stringify(this.temperatureDeltas)}`);
 
       switch (this.state.targetHeatingCoolingState) {
         case HeatingCoolingStateEnum.OFF:
@@ -269,6 +278,34 @@ export class Thermostat {
     };
   }
 
+  private get temperatureDeltas(): TemperatureDeltaHistory {
+    const now: number = new Date().getTime();
+    const historyLastFourHour = this.temperatureHistory.filter(e => e.date >= new Date(now - 14400000));
+    const historyLastTwoHour = historyLastFourHour.filter(e => e.date >= new Date(now - 7200000));
+    const historyLastOneHour = historyLastTwoHour.filter(e => e.date >= new Date(now - 3600000));
+    const historyLastHalfHour = historyLastOneHour.filter(e => e.date >= new Date(now - 1800000));
+    const historyLastQuarter = historyLastHalfHour.filter(e => e.date >= new Date(now - 900000));
+
+    // tslint:disable-next-line: max-line-length
+    const quarterTemperatureDelta: number = Math.max.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.min.apply(Math, historyLastQuarter.map(e => e.temperature));
+    // tslint:disable-next-line: max-line-length
+    const halfHourTemperatureDelta: number = Math.max.apply(Math, historyLastHalfHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastHalfHour.map(e => e.temperature));
+    // tslint:disable-next-line: max-line-length
+    const oneHourTemperatureDelta: number = Math.max.apply(Math, historyLastOneHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastOneHour.map(e => e.temperature));
+    // tslint:disable-next-line: max-line-length
+    const twoHourTemperatureDelta: number = Math.max.apply(Math, historyLastTwoHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastTwoHour.map(e => e.temperature));
+    // tslint:disable-next-line: max-line-length
+    const fourHourTemperatureDelta: number = Math.max.apply(Math, historyLastFourHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastFourHour.map(e => e.temperature));
+
+    return {
+      quarterTemperatureDelta,
+      halfHourTemperatureDelta,
+      oneHourTemperatureDelta,
+      twoHourTemperatureDelta,
+      fourHourTemperatureDelta
+    };
+  }
+
   // https://www.wrh.noaa.gov/psr/general/safety/heat/heatindex.png
   // https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
   private get HeatIndex(): number {
@@ -366,4 +403,12 @@ interface DeviceReponse {
   autoUpdate: boolean;
   logLevel: string;
   hwSupported: boolean;
+}
+
+export interface TemperatureDeltaHistory {
+  quarterTemperatureDelta: number;
+  halfHourTemperatureDelta: number;
+  oneHourTemperatureDelta: number;
+  twoHourTemperatureDelta: number;
+  fourHourTemperatureDelta: number;
 }
