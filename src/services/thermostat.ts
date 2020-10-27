@@ -51,16 +51,24 @@ export class Thermostat {
     try {
       const result = await fetch(this.sensorUrl);
       const data = (await result.json()) as DeviceReponse;
+      const lastSeen = new Date(JSON.parse(data.lastSeen));
 
       this.state.currentTemperature = data.temperature;
       this.state.currentRelativeHumidity = data.humidity;
       this.platform.logger.log('Thermostat.getSensorData() -- HeatIndex', this.HeatIndex);
 
-      this.platform.logger.error('Thermostat.getSensorData() -- saving temperature into temperatureHistory');
-      this.temperatureHistory.push({
-        date: new Date(),
-        temperature: data.temperature
-      });
+      this.platform.logger.info(`Thermostat.getSensorData() -- data is from ${lastSeen}.`);
+      const lastHistoryEntry: { date: Date, temperature: number }
+        = this.temperatureHistory[this.temperatureHistory.length - 1];
+      if (lastHistoryEntry.date !== lastSeen) {
+        this.temperatureHistory.push({
+          date: lastSeen,
+          temperature: data.temperature
+        });
+        this.platform.logger.info('Thermostat.getSensorData() -- saving temperature into temperatureHistory.');
+      } else {
+        this.platform.logger.warn(`Thermostat.getSensorData() -- returned stale data, skipping insert to history.`)
+      }
       await this.evaluateChanges();
     } catch (err) {
       this.platform.logger.error('Thermostat.getSensorData() -- error while running getSensorData();', err);
@@ -287,15 +295,15 @@ export class Thermostat {
     const historyLastQuarter = historyLastHalfHour.filter(e => e.date >= new Date(now - 900000));
 
     // tslint:disable-next-line: max-line-length
-    const quarterTemperatureDelta: number = Math.max.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.min.apply(Math, historyLastQuarter.map(e => e.temperature));
+    const quarterTemperatureDelta: number = Math.min.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.max.apply(Math, historyLastQuarter.map(e => e.temperature));
     // tslint:disable-next-line: max-line-length
-    const halfHourTemperatureDelta: number = Math.max.apply(Math, historyLastHalfHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastHalfHour.map(e => e.temperature));
+    const halfHourTemperatureDelta: number = Math.min.apply(Math, historyLastHalfHour.map(e => e.temperature)) - Math.max.apply(Math, historyLastHalfHour.map(e => e.temperature));
     // tslint:disable-next-line: max-line-length
-    const oneHourTemperatureDelta: number = Math.max.apply(Math, historyLastOneHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastOneHour.map(e => e.temperature));
+    const oneHourTemperatureDelta: number = Math.min.apply(Math, historyLastOneHour.map(e => e.temperature)) - Math.max.apply(Math, historyLastOneHour.map(e => e.temperature));
     // tslint:disable-next-line: max-line-length
-    const twoHourTemperatureDelta: number = Math.max.apply(Math, historyLastTwoHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastTwoHour.map(e => e.temperature));
+    const twoHourTemperatureDelta: number = Math.min.apply(Math, historyLastTwoHour.map(e => e.temperature)) - Math.max.apply(Math, historyLastTwoHour.map(e => e.temperature));
     // tslint:disable-next-line: max-line-length
-    const fourHourTemperatureDelta: number = Math.max.apply(Math, historyLastFourHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastFourHour.map(e => e.temperature));
+    const fourHourTemperatureDelta: number = Math.min.apply(Math, historyLastFourHour.map(e => e.temperature)) - Math.max.apply(Math, historyLastFourHour.map(e => e.temperature));
 
     return {
       quarterTemperatureDelta,
