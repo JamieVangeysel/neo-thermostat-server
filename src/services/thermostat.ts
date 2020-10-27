@@ -51,23 +51,32 @@ export class Thermostat {
     try {
       const result = await fetch(this.sensorUrl);
       const data = (await result.json()) as DeviceReponse;
-      const lastSeen = new Date(JSON.parse(data.lastSeen));
+      console.log
+      const lastSeen: Date = data.lastSeen;
 
       this.state.currentTemperature = data.temperature;
       this.state.currentRelativeHumidity = data.humidity;
       this.platform.logger.log('Thermostat.getSensorData() -- HeatIndex', this.HeatIndex);
 
       this.platform.logger.info(`Thermostat.getSensorData() -- data is from ${lastSeen}.`);
-      const lastHistoryEntry: { date: Date, temperature: number }
-        = this.temperatureHistory[this.temperatureHistory.length - 1];
-      if (lastHistoryEntry.date !== lastSeen) {
+      if ( this.temperatureHistory.length > 0) {
+        const lastHistoryEntry: { date: Date, temperature: number }
+          = this.temperatureHistory[this.temperatureHistory.length - 1];
+        if (lastHistoryEntry.date !== lastSeen) {
+          this.temperatureHistory.push({
+            date: lastSeen,
+            temperature: data.temperature
+          });
+          this.platform.logger.info('Thermostat.getSensorData() -- saving temperature into temperatureHistory.');
+        } else {
+          this.platform.logger.warn(`Thermostat.getSensorData() -- returned stale data, skipping insert to history.`)
+        }
+      } else {
         this.temperatureHistory.push({
           date: lastSeen,
           temperature: data.temperature
         });
         this.platform.logger.info('Thermostat.getSensorData() -- saving temperature into temperatureHistory.');
-      } else {
-        this.platform.logger.warn(`Thermostat.getSensorData() -- returned stale data, skipping insert to history.`)
       }
       await this.evaluateChanges();
     } catch (err) {
@@ -395,8 +404,8 @@ interface DeviceReponse {
   uuid: string;
   name: string;
   mac: string;
-  firstSeen: string;
-  lastSeen: string;
+  firstSeen: Date;
+  lastSeen: Date;
   localIp?: string;
   ipv4?: string;
   ipv6?: string;
