@@ -51,7 +51,6 @@ export class Thermostat {
     try {
       const result = await fetch(this.sensorUrl);
       const data = (await result.json()) as DeviceReponse;
-      console.log
       const lastSeen: Date = data.lastSeen;
 
       this.state.currentTemperature = data.temperature;
@@ -325,7 +324,7 @@ export class Thermostat {
 
   // https://www.wrh.noaa.gov/psr/general/safety/heat/heatindex.png
   // https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
-  private get HeatIndex(): number {
+  public get HeatIndex(): number {
     return this.calculateHeatIndex(this.CurrentTemperature, this.CurrentRelativeHumidity);
   }
 
