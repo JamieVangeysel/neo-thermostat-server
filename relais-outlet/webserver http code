@@ -1,0 +1,51 @@
+// Display the HTML web page
+client.println("<!DOCTYPE html><html>");
+client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+client.println("<link rel=\"icon\" href=\"data:,\">");
+// CSS to style the on/off buttons 
+// Feel free to change the background-color and font-size attributes to fit your preferences
+client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
+client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+client.println(".button2 {background-color: #77878A;}</style></head>");
+
+// Web Page Heading
+client.println("<body><h1>ESP8266 Web Server</h1>");
+
+// Display current state, and ON/OFF buttons for GPIO 1
+// If the pinState is off, it displays the ON button
+if (pinStates[0]==false) {
+  client.println("<p>GPIO 1 - State OFF</p>");
+  client.println("<p><a href=\"/1/on\"><button class=\"button\">ON</button></a></p>");
+} else {
+  client.println("<p>GPIO 1 - State ON</p>");
+  client.println("<p><a href=\"/1/off\"><button class=\"button button2\">OFF</button></a></p>");
+}
+// Display current state, and ON/OFF buttons for GPIO 2
+// If the pinState is off, it displays the ON button
+if (pinStates[1]==false) {
+  client.println("<p>GPIO 2 - State OFF</p>");
+  client.println("<p><a href=\"/2/on\"><button class=\"button\">ON</button></a></p>");
+} else {
+  client.println("<p>GPIO 2 - State ON</p>");
+  client.println("<p><a href=\"/2/off\"><button class=\"button button2\">OFF</button></a></p>");
+}
+// Display current state, and ON/OFF buttons for GPIO 3
+// If the pinState is off, it displays the ON button
+if (pinStates[2]==false) {
+  client.println("<p>GPIO 3 - State OFF</p>");
+  client.println("<p><a href=\"/3/on\"><button class=\"button\">ON</button></a></p>");
+} else {
+  client.println("<p>GPIO 3 - State ON</p>");
+  client.println("<p><a href=\"/3/off\"><button class=\"button button2\">OFF</button></a></p>");
+}
+// Display current state, and ON/OFF buttons for GPIO 2
+// If the pinState is off, it displays the ON button
+if (pinStates[3]==false) {
+  client.println("<p>GPIO 4 - State OFF</p>");
+  client.println("<p><a href=\"/4/on\"><button class=\"button\">ON</button></a></p>");
+} else {
+  client.println("<p>GPIO 4 - State ON</p>");
+  client.println("<p><a href=\"/4/off\"><button class=\"button button2\">OFF</button></a></p>");
+}
+client.println("</body></html>");
