@@ -27,7 +27,7 @@ export class Thermostat {
 
     this.weatherInfo = new WeatherInfoService(this.platform);
     this.weatherInfo.on('forecast', async (forecast: OpenWeatherMapResponse) => {
-      this.platform.logger.log(`Thermostat.weatherInfo.on('forecast')`, forecast);
+      this.platform.logger.debug(`Thermostat.weatherInfo.on('forecast')`, forecast.main);
       try {
         const ok = await this.platform.database.insertIntoCollection('forecastHistory', {
           date: new Date(),
@@ -41,8 +41,8 @@ export class Thermostat {
         this.platform.logger.error(`Thermostat.weatherInfo.on('forecast') -- Error adding forecast to DB!`);
       }
       this.currentForecast = forecast;
-      this.platform.logger.log(`Outside heat index: `, this.calculateHeatIndex(forecast.main.temp, forecast.main.humidity));
-      this.platform.logger.log(`Outside wind chill factor: `, this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed));
+      this.platform.logger.debug(`Outside heat index: `, this.calculateHeatIndex(forecast.main.temp, forecast.main.humidity));
+      this.platform.logger.debug(`Outside wind chill factor: `, this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed));
     });
 
     // set update interval fur current temperature to 1 minute
@@ -62,7 +62,7 @@ export class Thermostat {
       this.platform.logger.log('Thermostat.getSensorData() -- HeatIndex', this.HeatIndex);
 
       this.platform.logger.info(`Thermostat.getSensorData() -- data is from ${lastSeen}.`);
-      if ( this.temperatureHistory.length > 0) {
+      if (this.temperatureHistory.length > 0) {
         const lastHistoryEntry: { date: Date, temperature: number }
           = this.temperatureHistory[this.temperatureHistory.length - 1];
         if (lastHistoryEntry.date !== lastSeen) {
@@ -72,7 +72,7 @@ export class Thermostat {
           });
           this.platform.logger.info('Thermostat.getSensorData() -- saving temperature into temperatureHistory.');
         } else {
-          this.platform.logger.warn(`Thermostat.getSensorData() -- returned stale data, skipping insert to history.`)
+          this.platform.logger.warn(`Thermostat.getSensorData() -- returned stale data, skipping insert to history.`);
         }
       } else {
         this.temperatureHistory.push({

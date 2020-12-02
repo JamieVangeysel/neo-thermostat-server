@@ -12,7 +12,7 @@ export class Relais extends EventEmitter {
   }
 
   activate(type: SwitchTypeEnum) {
-    this.platform.logger.log(`Relais.activate() -- start`, type);
+    this.platform.logger.debug(`Relais.activate() -- start`, type);
     const onSwitches = this.platform.config.relais.switches.filter(e => e.type === type);
     const offSwitches = this.platform.config.relais.switches.filter(e => e.type !== type);
     this.platform.logger.log(`Relais.activate() -- filtered on and off lists`, onSwitches, offSwitches);
@@ -27,12 +27,12 @@ export class Relais extends EventEmitter {
       await this.setState(e, SwitchStateEnum.ON);
     });
     this.update();
-    this.platform.logger.log(`Relais.activate() -- end`);
+    this.platform.logger.debug(`Relais.activate() -- end`);
   }
 
   private async update() {
-    this.platform.logger.log(`Relais.update() -- start`);
-    this.platform.logger.log(`Relais.update() -- get current state from relaisController`);
+    this.platform.logger.debug(`Relais.update() -- start`);
+    this.platform.logger.debug(`Relais.update() -- get current state from relaisController`);
     try {
       const relaisResult = await fetch(`${this.platform.config.relais.secure ? 'https' : 'http'}://${this.platform.config.relais.hostname}/state`);
       this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`);
@@ -47,11 +47,11 @@ export class Relais extends EventEmitter {
     } catch (err) {
       this.platform.logger.error(`Relais.update() -- get state failed!`);
     }
-    this.platform.logger.log(`Relais.update() -- end`);
+    this.platform.logger.debug(`Relais.update() -- end`);
   }
 
   private async setState(relais: IRelaisSwitch, state: SwitchStateEnum) {
-    this.platform.logger.log(`Relais.setState() -- start`, relais, state);
+    this.platform.logger.debug(`Relais.setState() -- start`, relais, state);
     // check the current state of pinIndex
     if (relais.active && state === SwitchStateEnum.ON) {
       this.platform.logger.log(`Relais.setState() -- relais is currently ON and needs to be switched ON so skip request.`);
@@ -69,7 +69,7 @@ export class Relais extends EventEmitter {
         this.emit('error', err);
       }
     }
-    this.platform.logger.log(`Relais.setState() -- end`);
+    this.platform.logger.debug(`Relais.setState() -- end`);
   }
 }
 

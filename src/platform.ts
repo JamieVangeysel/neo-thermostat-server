@@ -12,31 +12,31 @@ export class Platform {
   database: DatabaseService;
 
   constructor() {
-    this.logger.log(`Platform.constructor() -- start`);
+    this.logger.debug(`Platform.constructor() -- start`);
     this.init().then(() => {
-      this.logger.log(`Platform.constructor() -- end`);
+      this.logger.debug(`Platform.constructor() -- end`);
     });
   }
 
   private async init(): Promise<void> {
-    this.logger.log(`Platform.init() -- init`);
+    this.logger.debug(`Platform.init() -- init`);
     this.configService.on('initialized', async (config: IConfig) => {
-      this.logger.log(`Platform.init() -- configService emitted initialized`);
+      this.logger.debug(`Platform.init() -- configService emitted initialized`);
       this.config = config;
       this.logger.log(`Platform.init() -- set config`);
       this.database = new DatabaseService(this);
       try {
         await this.database.init();
-        this.logger.log(`Platform.init() -- initialized new DatabaseService()`);
+        this.logger.debug(`Platform.init() -- initialized new DatabaseService()`);
       } catch (err: any) {
         this.logger.error('Platform.init()', err.message);
       }
       const thermostat = new Thermostat(this);
-      this.logger.log(`Platform.init() -- initialized new Thermostat()`);
+      this.logger.debug(`Platform.init() -- initialized new Thermostat()`);
       this.http.configure(config.hostname, config.port, thermostat);
       this.logger.log(`Platform.init() -- configure http instance`);
     });
     await this.configService.initialize();
-    this.logger.log(`Platform.init() -- end`);
+    this.logger.debug(`Platform.init() -- end`);
   }
 }
