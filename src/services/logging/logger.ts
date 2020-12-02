@@ -75,10 +75,10 @@ export class LogEntry {
     let ret = '';
 
     if (this.logWithDate) {
-      ret = this.entryDate.toISOString() + ' - ';
+      ret = '[' + this.entryDate.toISOString().replace('T', ' ').replace('Z', '') + '] ';
     }
-    ret += 'Type: ' + LogLevel[this.level].padEnd(5, ' ');
-    ret += ' : ' + this.message;
+    ret += '' + LogLevel[this.level].padEnd(5, ' ');
+    ret += ' - ' + this.message;
     if (this.extraInfo.length) {
       ret += ' - Extra Info: '
         + this.formatParams(this.extraInfo);

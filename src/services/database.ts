@@ -22,7 +22,7 @@ export class DatabaseService {
     this.platform.logger.debug(`DatabaseService.init() -- start`);
     return new Promise<void>((resolve: () => void, reject: (err: Error) => void) => {
       if (this.url.length === 0) {
-        return reject(new Error('no config provided'));
+        return reject(new Error('no Database config was provided'));
       }
       MongoClient.connect(this.url, {
         useUnifiedTopology: true,

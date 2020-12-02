@@ -66,6 +66,7 @@ export class Relais extends EventEmitter {
       try {
         await fetch(`${this.platform.config.relais.secure ? 'https' : 'http'}://${this.platform.config.relais.hostname}/${relais.pinIndex}/${state}`);
       } catch (err) {
+        this.platform.logger.error(`Relais.setState() -- error`, err);
         this.emit('error', err);
       }
     }
