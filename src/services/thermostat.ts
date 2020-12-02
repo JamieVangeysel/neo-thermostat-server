@@ -16,7 +16,7 @@ export class Thermostat {
   constructor(platform: Platform) {
     this.platform = platform;
 
-    this.platform.logger.debug(`Constructed new instance of Thermostat()`);
+    this.platform.logger.debug(`Thermostat.constructor() -- Constructed new instance of Thermostat()`);
     // get initial data from azure
     this.getSensorData();
 
@@ -26,16 +26,20 @@ export class Thermostat {
     });
 
     this.weatherInfo = new WeatherInfoService(this.platform);
-    this.weatherInfo.on('forecast', (forecast: OpenWeatherMapResponse) => {
+    this.weatherInfo.on('forecast', async (forecast: OpenWeatherMapResponse) => {
       this.platform.logger.log(`Thermostat.weatherInfo.on('forecast')`, forecast);
-      this.platform.database.insertIntoCollection('forecastHistory', {
-        date: new Date(),
-        forecast
-      }).then(ok => {
+      try {
+        const ok = await this.platform.database.insertIntoCollection('forecastHistory', {
+          date: new Date(),
+          forecast
+        });
+
         if (ok) {
           this.platform.logger.log(`Thermostat.weatherInfo.on('forecast') -- Succesfully added forecast to forecastHistory in DB.`);
         }
-      });
+      } catch (err) {
+        this.platform.logger.error(`Thermostat.weatherInfo.on('forecast') -- Error adding forecast to DB!`);
+      }
       this.currentForecast = forecast;
       this.platform.logger.log(`Outside heat index: `, this.calculateHeatIndex(forecast.main.temp, forecast.main.humidity));
       this.platform.logger.log(`Outside wind chill factor: `, this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed));
@@ -68,20 +72,18 @@ export class Thermostat {
   }
 
   async evaluateChanges() {
-    this.platform.logger.debug('start evaluateChanges()');
+    this.platform.logger.debug('Thermostat.evaluateChanges() -- start');
     try {
-      this.platform.logger.info(`Current temperature: ${this.state.currentTemperature}`,
-        `target Temperature: ${this.state.targetTemperature}`,
-        this.state.targetHeatingCoolingState,
-        this.state.currentHeatingCoolingState,
-        this.thresholds
-      );
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- Current temperature: ${this.state.currentTemperature}`);
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- Target temperature: ${this.state.targetTemperature}`);
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- State info; Current: ${this.state.targetHeatingCoolingState}, Target: ${this.state.currentHeatingCoolingState}`);
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp thresholds's: ${JSON.stringify(this.thresholds)}`);
 
-      this.platform.logger.info(`Current temperature Delta's: ${JSON.stringify(this.temperatureDeltas)}`);
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp delta's: ${JSON.stringify(this.temperatureDeltas)}`);
 
       switch (this.state.targetHeatingCoolingState) {
         case HeatingCoolingStateEnum.OFF:
-          this.platform.logger.debug('targetHeatingCoolingState is OFF, set current state to OFF');
+          this.platform.logger.debug('Thermostat.evaluateChanges() -- targetHeatingCoolingState is OFF, set current state to OFF');
           this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState;
 
           // If any relais is still powered on, turn them off
@@ -89,45 +91,45 @@ export class Thermostat {
           return;
 
         case HeatingCoolingStateEnum.HEAT:
-          this.platform.logger.debug('targetHeatingCoolingState is HEAT, check if currently heating');
+          this.platform.logger.debug('Thermostat.evaluateChanges() -- targetHeatingCoolingState is HEAT, check if currently heating');
           if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
             this.platform.logger.debug('system is currently cooling, turn off COOL');
             this.relais.activate(SwitchTypeEnum.NONE);
           }
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
             // The system is currently heating, check if we need to shutdown heater for reaching maximum temperature
-            this.platform.logger.debug('Check if target temperature has not been reached');
+            this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if target temperature has not been reached');
             if (this.CurrentTemperature >= this.thresholds.heatingMax) {
-              this.platform.logger.debug('turn off heating since target has been reached, don\'t change target');
+              this.platform.logger.debug('Thermostat.evaluateChanges() -- turn off heating since target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.NONE);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
                 this.retries = 0;
               } catch {
-                this.platform.logger.error('Error while turning off the heater, try again next cycle.');
+                this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
             }
           } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-            this.platform.logger.debug('Check if temperature has Driftped below acceptable temperature range');
+            this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if temperature has Driftped below acceptable temperature range');
             if (this.state.currentTemperature <= this.thresholds.heatingMin) {
-              this.platform.logger.debug('turn on heating since min target has been reached, don\'t change target');
+              this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since min target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.HEAT);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
                 this.retries = 0;
               } catch {
-                this.platform.logger.error('Error while turning off the heater, try again next cycle.');
+                this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
             } else if (this.CurrentTemperature <= this.TargetTemperature) {
-              this.platform.logger.debug('turn on heating since current temperature is below the target temperature');
+              this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since current temperature is below the target temperature');
               try {
                 this.relais.activate(SwitchTypeEnum.HEAT);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
                 this.retries = 0;
               } catch {
-                this.platform.logger.error('Error while turning off the heater, try again next cycle.');
+                this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
             }
@@ -135,31 +137,31 @@ export class Thermostat {
           return;
 
         case HeatingCoolingStateEnum.COOL:
-          this.platform.logger.debug('Target is cooling, check if currently cooling');
+          this.platform.logger.debug('Thermostat.evaluateChanges() -- Target is cooling, check if currently cooling');
           this.relais.activate(SwitchTypeEnum.NONE);
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
-            this.platform.logger.debug('Check if target temperature has been reached');
+            this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if target temperature has been reached');
             if (this.CurrentTemperature <= this.thresholds.coolingMin) {
-              this.platform.logger.debug('turn off cooling since target has been reached, don\'t change target');
+              this.platform.logger.debug('Thermostat.evaluateChanges() -- turn off cooling since target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.NONE);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
                 this.retries = 0;
               } catch {
-                this.platform.logger.error('Error while turning off the heater, try again next cycle.');
+                this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
             }
           } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-            this.platform.logger.debug('check if maximum temperature has been reached');
+            this.platform.logger.debug('Thermostat.evaluateChanges() -- check if maximum temperature has been reached');
             if (this.state.currentTemperature >= this.thresholds.coolingMax) {
-              this.platform.logger.debug('turn on heating since min target has been reached, don\'t change target');
+              this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since min target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.COOL);
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL;
                 this.retries = 0;
               } catch {
-                this.platform.logger.error('Error while turning off the cooling, try again next cycle.');
+                this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the cooling, try again next cycle.');
                 this.retries++;
               }
             }
@@ -171,18 +173,18 @@ export class Thermostat {
           return;
       }
     } catch (err) {
-      this.platform.logger.error('error while updating relais state', err);
+      this.platform.logger.error('Thermostat.evaluateChanges() -- error while updating relais state', err);
     } finally {
-      this.platform.logger.debug(`finished running evaluateChanges()`, 'retries:', this.retries);
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- finished running evaluateChanges()`, 'retries:', this.retries);
       if (this.retries > 5) {
-        this.platform.logger.error(`Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
+        this.platform.logger.error(`Thermostat.evaluateChanges() -- Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
       }
 
       const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.platform.config)));
       if (writeOk) {
-        this.platform.logger.debug('successfully saved current state in config');
+        this.platform.logger.debug('Thermostat.evaluateChanges() -- successfully saved current state in config');
       } else {
-        this.platform.logger.error('Error while trying to save current config to disk!');
+        this.platform.logger.error('Thermostat.evaluateChanges() -- Error while trying to save current config to disk!');
       }
     }
   }
@@ -237,7 +239,7 @@ export class Thermostat {
       const Tr = this.CurrentTemperature; // mean diant temperature
 
       const v = 50.49 - (4.4047 * Ta) + (0.096425 * Math.pow(Ta, 2));
-      this.platform.logger.debug(`Desired fan speed: ${v}m/s.`);
+      this.platform.logger.debug(`Thermostat.thresholds -- Desired fan speed: ${v}m/s.`);
 
       // Operating temperature
       let To: number;
@@ -246,7 +248,7 @@ export class Thermostat {
       } else {
         To = (Tr + (Ta * Math.sqrt(10 * v))) / (1 + Math.sqrt(10 * v));
       }
-      this.platform.logger.debug(`Operating Temperature: ${To}`);
+      this.platform.logger.debug(`Thermostat.thresholds -- Operating Temperature: ${To}`);
 
       const minFloorTemp = 19;
       const maxFloorTemp = 29;

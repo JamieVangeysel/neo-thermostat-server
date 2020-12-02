@@ -33,16 +33,20 @@ export class Relais extends EventEmitter {
   private async update() {
     this.platform.logger.log(`Relais.update() -- start`);
     this.platform.logger.log(`Relais.update() -- get current state from relaisController`);
-    const relaisResult = await fetch(`${this.platform.config.relais.secure ? 'https' : 'http'}://${this.platform.config.relais.hostname}/state`);
-    this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`);
-    const relaisStates: boolean[] = (await relaisResult.json()).status;
-    this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates);
+    try {
+      const relaisResult = await fetch(`${this.platform.config.relais.secure ? 'https' : 'http'}://${this.platform.config.relais.hostname}/state`);
+      this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`);
+      const relaisStates: boolean[] = (await relaisResult.json()).status;
+      this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates);
 
-    for (let i = 0; i < relaisStates.length; i++) {
-      this.platform.config.relais.switches[i].active = relaisStates[i];
+      for (let i = 0; i < relaisStates.length; i++) {
+        this.platform.config.relais.switches[i].active = relaisStates[i];
+      }
+
+      this.emit('update', this.platform.config.relais.switches);
+    } catch (err) {
+      this.platform.logger.error(`Relais.update() -- get state failed!`);
     }
-
-    this.emit('update', this.platform.config.relais.switches);
     this.platform.logger.log(`Relais.update() -- end`);
   }
 

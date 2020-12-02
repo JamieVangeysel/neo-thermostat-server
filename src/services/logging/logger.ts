@@ -6,27 +6,27 @@ export class Logger {
   }
 
   log(message: string, ...optionalParams: any[]) {
-    this.writeToLog(message, LogLevel.All, optionalParams);
+    this.writeToLog(`\x1b[37m${message}`, LogLevel.All, optionalParams);
   }
 
   debug(message: string, ...optionalParams: any[]) {
-    this.writeToLog(message, LogLevel.Debug, optionalParams);
+    this.writeToLog(`\x1b[35m${message}`, LogLevel.Debug, optionalParams);
   }
 
   info(message: string, ...optionalParams: any[]) {
-    this.writeToLog(message, LogLevel.Info, optionalParams);
+    this.writeToLog(`\x1b[34m${message}`, LogLevel.Info, optionalParams);
   }
 
   warn(message: string, ...optionalParams: any[]) {
-    this.writeToLog(message, LogLevel.Warn, optionalParams);
+    this.writeToLog(`\x1b[33m${message}`, LogLevel.Warn, optionalParams);
   }
 
   error(message: string, ...optionalParams: any[]) {
-    this.writeToLog(message, LogLevel.Error, optionalParams);
+    this.writeToLog(`\x1b[31m${message}`, LogLevel.Error, optionalParams);
   }
 
   fatal(message: string, ...optionalParams: any[]) {
-    this.writeToLog(message, LogLevel.Fatal, optionalParams);
+    this.writeToLog(`\x1b[1m${message}`, LogLevel.Fatal, optionalParams);
   }
 
   private writeToLog(msg: string, level: LogLevel, params: any[]) {
@@ -78,13 +78,13 @@ export class LogEntry {
       ret = this.entryDate.toISOString() + ' - ';
     }
     ret += 'Type: ' + LogLevel[this.level].padEnd(5, ' ');
-    ret += ' - Message: ' + this.message;
+    ret += ' : ' + this.message;
     if (this.extraInfo.length) {
       ret += ' - Extra Info: '
         + this.formatParams(this.extraInfo);
     }
 
-    return ret;
+    return ret + '\x1b[0m';
   }
 
   private formatParams(params: any[]): string {

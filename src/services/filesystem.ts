@@ -41,7 +41,7 @@ export class FileSystem {
           resolve(data);
         });
       } catch (err) {
-        logger.error(`FileSystem.writeFile() -- err ${err}`);
+        logger.error(`FileSystem.readFile() -- err ${err}`);
         reject(err);
       }
     });

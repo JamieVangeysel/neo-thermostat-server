@@ -25,8 +25,12 @@ export class Platform {
       this.config = config;
       this.logger.log(`Platform.init() -- set config`);
       this.database = new DatabaseService(this);
-      await this.database.init();
-      this.logger.log(`Platform.init() -- initialized new DatabaseService()`);
+      try {
+        await this.database.init();
+        this.logger.log(`Platform.init() -- initialized new DatabaseService()`);
+      } catch (err: any) {
+        this.logger.error('Platform.init()', err.message);
+      }
       const thermostat = new Thermostat(this);
       this.logger.log(`Platform.init() -- initialized new Thermostat()`);
       this.http.configure(config.hostname, config.port, thermostat);
