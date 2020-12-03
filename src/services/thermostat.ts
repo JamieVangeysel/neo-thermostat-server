@@ -110,54 +110,7 @@ export class Thermostat {
           return;
 
         case HeatingCoolingStateEnum.HEAT:
-          this.platform.logger.debug('Thermostat.evaluateChanges() -- targetHeatingCoolingState is HEAT, check if currently heating');
-          if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
-            this.platform.logger.debug('system is currently cooling, turn off COOL');
-            this.relais.activate(SwitchTypeEnum.NONE);
-          }
-          if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
-            // The system is currently heating, check if all relais is active
-            if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
-              this.platform.logger.warn('Thermostat.evaluateChanges() -- HEAT is active but some relais are not activated!');
-              this.relais.activate(SwitchTypeEnum.HEAT);
-            }
-            // check if we need to shutdown heater for reaching maximum temperature
-            this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if target temperature has not been reached');
-            if (currentTemp >= this.thresholds.heatingMax) {
-              this.platform.logger.debug('Thermostat.evaluateChanges() -- turn off heating since target has been reached, don\'t change target');
-              try {
-                this.relais.activate(SwitchTypeEnum.NONE);
-                this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
-                this.retries = 0;
-              } catch {
-                this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the heater, try again next cycle.');
-                this.retries++;
-              }
-            }
-          } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-            this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if temperature has Driftped below acceptable temperature range');
-            if (currentTemp <= this.thresholds.heatingMin) {
-              this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since min target has been reached, don\'t change target');
-              try {
-                this.relais.activate(SwitchTypeEnum.HEAT);
-                this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
-                this.retries = 0;
-              } catch {
-                this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the heater, try again next cycle.');
-                this.retries++;
-              }
-            } else if (currentTemp <= this.TargetTemperature) {
-              this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since current temperature is below the target temperature');
-              try {
-                this.relais.activate(SwitchTypeEnum.HEAT);
-                this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
-                this.retries = 0;
-              } catch {
-                this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the heater, try again next cycle.');
-                this.retries++;
-              }
-            }
-          }
+          await this.handleHeatState(currentTemp);
           return;
 
         case HeatingCoolingStateEnum.COOL:
@@ -211,6 +164,71 @@ export class Thermostat {
         this.platform.logger.error('Thermostat.evaluateChanges() -- Error while trying to save current config to disk!');
       }
     }
+  }
+
+  private async handleHeatState(currentTemp: number) {
+    this.platform.logger.debug('Thermostat.handleHeatState() -- start');
+
+    this.platform.logger.debug('Thermostat.handleHeatState() -- targetHeatingCoolingState is HEAT, check if currently heating');
+    if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
+      this.platform.logger.debug('system is currently cooling, turn off COOL');
+      this.relais.activate(SwitchTypeEnum.NONE);
+    }
+    // The system is currently heating,
+    if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
+      // check if all relais are active
+      if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
+        this.platform.logger.warn('Thermostat.handleHeatState() -- HEAT is active but some relais are not activated!');
+        this.relais.activate(SwitchTypeEnum.HEAT);
+      }
+      // check if we need to shutdown heater for reaching maximum temperature
+      this.platform.logger.debug('Thermostat.handleHeatState() -- Check if target temperature has not been reached');
+      if (currentTemp >= this.thresholds.heatingMax) {
+        this.platform.logger.debug('Thermostat.handleHeatState() -- turn off heating since target has been reached, don\'t change target');
+        try {
+          this.relais.activate(SwitchTypeEnum.NONE);
+          this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF;
+          this.retries = 0;
+        } catch {
+          this.platform.logger.error('Thermostat.handleHeatState() -- Error while turning off the heater, try again next cycle.');
+          this.retries++;
+        }
+      }
+    }
+    // The system is currently off
+    else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
+      // check if all relais are inactive
+      if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && e.active)) {
+        this.platform.logger.warn('Thermostat.handleHeatState() -- NONE is active but some relais are activated!');
+        this.relais.activate(SwitchTypeEnum.NONE);
+      }
+      // check if temperature has drifted below an accepteble temperature.
+      this.platform.logger.debug('Thermostat.handleHeatState() -- Check if temperature has driftped below an acceptable temperature range');
+      if (currentTemp <= this.thresholds.heatingMin) {
+        // tslint:disable-next-line: max-line-length
+        this.platform.logger.debug('Thermostat.handleHeatState() -- turn on heating since min target has been reached, don\'t change target');
+        try {
+          this.relais.activate(SwitchTypeEnum.HEAT);
+          this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
+          this.retries = 0;
+        } catch {
+          this.platform.logger.error('Thermostat.handleHeatState() -- Error while turning off the heater, try again next cycle.');
+          this.retries++;
+        }
+      } else if (currentTemp <= this.TargetTemperature) {
+        this.platform.logger.debug('Thermostat.handleHeatState() -- turn on heating since current temperature is below the target temperature');
+        try {
+          this.relais.activate(SwitchTypeEnum.HEAT);
+          this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
+          this.retries = 0;
+        } catch {
+          this.platform.logger.error('Thermostat.handleHeatState() -- Error while turning off the heater, try again next cycle.');
+          this.retries++;
+        }
+      }
+    }
+
+    this.platform.logger.debug('Thermostat.handleHeatState() -- end');
   }
 
   private calculateHeatIndex(temperature: number, relativeHumidity: number) {
