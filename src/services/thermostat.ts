@@ -176,7 +176,7 @@ export class Thermostat {
     }
     // The system is currently heating
     if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
-      this.platform.logger.debug('The system is currently heating');
+      this.platform.logger.debug('Thermostat.handleHeatState() -- The system is currently heating');
       // check if all relais are active
       if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- HEAT is active but some relais are not activated!');
@@ -198,7 +198,7 @@ export class Thermostat {
     }
     // The system is currently off
     else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
-      this.platform.logger.debug('The system is currently off');
+      this.platform.logger.debug('Thermostat.handleHeatState() -- The system is currently off');
       // check if all relais are inactive
       if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- NONE is active but some relais are activated!');
