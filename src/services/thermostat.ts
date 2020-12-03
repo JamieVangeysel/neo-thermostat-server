@@ -103,19 +103,19 @@ export class Thermostat {
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp delta's: ${JSON.stringify(temperatureDeltas)}`);
 
       // report if delta's have been reached, inform user of this behaviour
-      if (Math.abs(temperatureDeltas.quarterTemperatureDelta) > thresholds.deltaMax.quarter) {
+      if (temperatureDeltas.quarterTemperatureDelta > thresholds.deltaMax.quarter) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.quarter has been exceeded!');
       }
-      if (Math.abs(temperatureDeltas.halfHourTemperatureDelta) > thresholds.deltaMax.halfHour) {
+      if (temperatureDeltas.halfHourTemperatureDelta > thresholds.deltaMax.halfHour) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.halfHour has been exceeded!');
       }
-      if (Math.abs(temperatureDeltas.oneHourTemperatureDelta) > thresholds.deltaMax.oneHour) {
+      if (temperatureDeltas.oneHourTemperatureDelta > thresholds.deltaMax.oneHour) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.oneHour has been exceeded!');
       }
-      if (Math.abs(temperatureDeltas.twoHourTemperatureDelta) > thresholds.deltaMax.twoHours) {
+      if (temperatureDeltas.twoHourTemperatureDelta > thresholds.deltaMax.twoHours) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.twoHours has been exceeded!');
       }
-      if (Math.abs(temperatureDeltas.fourHourTemperatureDelta) > thresholds.deltaMax.fourHours) {
+      if (temperatureDeltas.fourHourTemperatureDelta > thresholds.deltaMax.fourHours) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.fourHours has been exceeded!');
       }
 
@@ -362,15 +362,15 @@ export class Thermostat {
     this.platform.logger.debug('Thermostat.temperatureDeltas -- historyLastQuarter', historyLastQuarter);
 
     // tslint:disable-next-line: max-line-length
-    const quarterTemperatureDelta: number = Math.min.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.max.apply(Math, historyLastQuarter.map(e => e.temperature));
+    const quarterTemperatureDelta: number = Math.max.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.min.apply(Math, historyLastQuarter.map(e => e.temperature));
     // tslint:disable-next-line: max-line-length
-    const halfHourTemperatureDelta: number = Math.min.apply(Math, historyLastHalfHour.map(e => e.temperature)) - Math.max.apply(Math, historyLastHalfHour.map(e => e.temperature));
+    const halfHourTemperatureDelta: number = Math.max.apply(Math, historyLastHalfHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastHalfHour.map(e => e.temperature));
     // tslint:disable-next-line: max-line-length
-    const oneHourTemperatureDelta: number = Math.min.apply(Math, historyLastOneHour.map(e => e.temperature)) - Math.max.apply(Math, historyLastOneHour.map(e => e.temperature));
+    const oneHourTemperatureDelta: number = Math.max.apply(Math, historyLastOneHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastOneHour.map(e => e.temperature));
     // tslint:disable-next-line: max-line-length
-    const twoHourTemperatureDelta: number = Math.min.apply(Math, historyLastTwoHour.map(e => e.temperature)) - Math.max.apply(Math, historyLastTwoHour.map(e => e.temperature));
+    const twoHourTemperatureDelta: number = Math.max.apply(Math, historyLastTwoHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastTwoHour.map(e => e.temperature));
     // tslint:disable-next-line: max-line-length
-    const fourHourTemperatureDelta: number = Math.min.apply(Math, historyLastFourHour.map(e => e.temperature)) - Math.max.apply(Math, historyLastFourHour.map(e => e.temperature));
+    const fourHourTemperatureDelta: number = Math.max.apply(Math, historyLastFourHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastFourHour.map(e => e.temperature));
 
     return {
       quarterTemperatureDelta,
