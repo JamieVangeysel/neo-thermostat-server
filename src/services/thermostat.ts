@@ -116,7 +116,11 @@ export class Thermostat {
             this.relais.activate(SwitchTypeEnum.NONE);
           }
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
-            // The system is currently heating, check if we need to shutdown heater for reaching maximum temperature
+            // The system is currently heating, check if relais is active
+            if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
+              this.relais.activate(SwitchTypeEnum.HEAT);
+            }
+            // check if we need to shutdown heater for reaching maximum temperature
             this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if target temperature has not been reached');
             if (currentTemp >= this.thresholds.heatingMax) {
               this.platform.logger.debug('Thermostat.evaluateChanges() -- turn off heating since target has been reached, don\'t change target');
