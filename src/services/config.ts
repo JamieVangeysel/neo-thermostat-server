@@ -17,7 +17,7 @@ export class ConfigService extends EventEmitter {
   async save(config: IConfig) {
     this.platform.logger.debug(`ConfigService.save() -- start`, config);
 
-    const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(config)));
+    const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(config, null, 2)));
     if (writeOk) {
       this.platform.logger.log(`ConfigService.save() -- write config to './config.json' ok.`);
       this.emit('saved', config);
@@ -26,6 +26,7 @@ export class ConfigService extends EventEmitter {
     }
 
     this.platform.logger.debug(`ConfigService.save() -- end`);
+    return writeOk;
   }
 
   async initialize() {
@@ -96,7 +97,7 @@ export class ConfigService extends EventEmitter {
     };
 
     this.platform.logger.log(`ConfigService.createDefaultConfig() -- write defaultConfig to './config.json'`);
-    const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(defaultConfig)));
+    const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(defaultConfig, null, 2)));
     if (writeOk) {
       this.platform.logger.log(`ConfigService.createDefaultConfig() -- write defaultConfig to './config.json' ok.`);
       this.emit('initialized', defaultConfig);

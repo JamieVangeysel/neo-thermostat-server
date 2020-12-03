@@ -1,12 +1,12 @@
 import { fetch } from 'cross-fetch';
-import { FileSystem } from './filesystem';
 import { Platform } from '../platform';
 import { IRelaisSwitch, Relais, SwitchTypeEnum } from './relais';
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info';
 
 export class Thermostat {
   private platform: Platform;
-  private uuid = '6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a';
+  private uuid = 'dac7ca013a360dd79f138b620275032c172715a254f0825d30c4cf77f9b38c6d4606b06549fb0a5cff1e522c007cb46e';
+  // woonkamer: 6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a
   private relais: Relais;
   private weatherInfo: WeatherInfoService;
   private retries = 0;
@@ -89,6 +89,9 @@ export class Thermostat {
 
   async evaluateChanges() {
     this.platform.logger.debug('Thermostat.evaluateChanges() -- start');
+    // Changed back to current temp instead of Heat Index
+    const currentTemp = this.CurrentTemperature;
+
     try {
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Current temperature: ${this.state.currentTemperature}`);
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Target temperature: ${this.state.targetTemperature}`);
@@ -115,7 +118,7 @@ export class Thermostat {
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
             // The system is currently heating, check if we need to shutdown heater for reaching maximum temperature
             this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if target temperature has not been reached');
-            if (this.CurrentTemperature >= this.thresholds.heatingMax) {
+            if (currentTemp >= this.thresholds.heatingMax) {
               this.platform.logger.debug('Thermostat.evaluateChanges() -- turn off heating since target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.NONE);
@@ -128,7 +131,7 @@ export class Thermostat {
             }
           } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
             this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if temperature has Driftped below acceptable temperature range');
-            if (this.state.currentTemperature <= this.thresholds.heatingMin) {
+            if (currentTemp <= this.thresholds.heatingMin) {
               this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since min target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.HEAT);
@@ -138,7 +141,7 @@ export class Thermostat {
                 this.platform.logger.error('Thermostat.evaluateChanges() -- Error while turning off the heater, try again next cycle.');
                 this.retries++;
               }
-            } else if (this.CurrentTemperature <= this.TargetTemperature) {
+            } else if (currentTemp <= this.TargetTemperature) {
               this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since current temperature is below the target temperature');
               try {
                 this.relais.activate(SwitchTypeEnum.HEAT);
@@ -157,7 +160,7 @@ export class Thermostat {
           this.relais.activate(SwitchTypeEnum.NONE);
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
             this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if target temperature has been reached');
-            if (this.CurrentTemperature <= this.thresholds.coolingMin) {
+            if (currentTemp <= this.thresholds.coolingMin) {
               this.platform.logger.debug('Thermostat.evaluateChanges() -- turn off cooling since target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.NONE);
@@ -170,7 +173,7 @@ export class Thermostat {
             }
           } else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
             this.platform.logger.debug('Thermostat.evaluateChanges() -- check if maximum temperature has been reached');
-            if (this.state.currentTemperature >= this.thresholds.coolingMax) {
+            if (currentTemp >= this.thresholds.coolingMax) {
               this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since min target has been reached, don\'t change target');
               try {
                 this.relais.activate(SwitchTypeEnum.COOL);
@@ -196,7 +199,7 @@ export class Thermostat {
         this.platform.logger.error(`Thermostat.evaluateChanges() -- Relais communication has been unsuccessfull 5 Times! Send warning To user to power off master switch`);
       }
 
-      const writeOk = await new FileSystem().writeFile('./config.json', Buffer.from(JSON.stringify(this.platform.config)));
+      const writeOk = await this.platform.configService.save(this.platform.config);
       if (writeOk) {
         this.platform.logger.debug('Thermostat.evaluateChanges() -- successfully saved current state in config');
       } else {
@@ -303,6 +306,8 @@ export class Thermostat {
     const historyLastOneHour = historyLastTwoHour.filter(e => e.date >= new Date(now - 3600000));
     const historyLastHalfHour = historyLastOneHour.filter(e => e.date >= new Date(now - 1800000));
     const historyLastQuarter = historyLastHalfHour.filter(e => e.date >= new Date(now - 900000));
+
+    this.platform.logger.log('Thermostat.temperatureDeltas -- ', historyLastQuarter, historyLastHalfHour);
 
     // tslint:disable-next-line: max-line-length
     const quarterTemperatureDelta: number = Math.min.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.max.apply(Math, historyLastQuarter.map(e => e.temperature));

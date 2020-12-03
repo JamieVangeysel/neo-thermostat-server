@@ -10,6 +10,7 @@ export class Platform {
   configService: ConfigService = new ConfigService(this);
   http: HttpListener = new HttpListener(this);
   database: DatabaseService;
+  thermostat: Thermostat;
 
   constructor() {
     this.logger.debug(`Platform.constructor() -- start`);
@@ -31,9 +32,9 @@ export class Platform {
       } catch (err: any) {
         this.logger.error('Platform.init()', err.message);
       }
-      const thermostat = new Thermostat(this);
+      this.thermostat = new Thermostat(this);
       this.logger.debug(`Platform.init() -- initialized new Thermostat()`);
-      this.http.configure(config.hostname, config.port, thermostat);
+      this.http.configure(config.hostname, config.port, this.thermostat);
       this.logger.log(`Platform.init() -- configure http instance`);
     });
     await this.configService.initialize();
