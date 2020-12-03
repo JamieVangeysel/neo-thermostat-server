@@ -51,7 +51,7 @@ export class HttpListener extends EventEmitter {
 
     this.app.get('/current-temperature', (req, res) => {
       this.platform.logger.debug(`HttpListener.get() -- received request '/current-temperature', returning current temperature.`);
-      res.send(valueResponse(this.thermostat.HeatIndex));
+      res.send(valueResponse(this.thermostat.CurrentTemperature));
     });
 
     this.app.get('/target-temperature', (req, res) => {
