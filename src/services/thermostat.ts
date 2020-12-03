@@ -333,7 +333,7 @@ export class Thermostat {
     const historyLastQuarter = historyLastHalfHour.filter(e => e.date >= new Date(now - 900000));
 
     // tslint:disable-next-line: max-line-length
-    this.platform.logger.debug('Thermostat.temperatureDeltas -- ', this.temperatureHistory, historyLastQuarter, historyLastHalfHour, new Date(now), new Date(now - 14400000));
+    this.platform.logger.debug('Thermostat.temperatureDeltas -- ', historyLastQuarter);
 
     // tslint:disable-next-line: max-line-length
     const quarterTemperatureDelta: number = Math.min.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.max.apply(Math, historyLastQuarter.map(e => e.temperature));
