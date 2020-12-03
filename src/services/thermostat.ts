@@ -91,18 +91,18 @@ export class Thermostat {
     this.platform.logger.debug('Thermostat.evaluateChanges() -- start');
     // Changed back to current temp instead of Heat Index
     const currentTemp = this.CurrentTemperature;
+    const thresholds = this.thresholds;
+    const temperatureDeltas = this.temperatureDeltas;
 
     try {
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Current temperature: ${this.state.currentTemperature}`);
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Target temperature: ${this.state.targetTemperature}`);
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- State info; Current: ${this.state.targetHeatingCoolingState}, Target: ${this.state.currentHeatingCoolingState}`);
-      this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp thresholds's: ${JSON.stringify(this.thresholds)}`);
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp thresholds's: ${JSON.stringify(thresholds)}`);
 
-      this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp delta's: ${JSON.stringify(this.temperatureDeltas)}`);
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp delta's: ${JSON.stringify(temperatureDeltas)}`);
 
       // report if delta's have been reached, inform user of this behaviour
-      const thresholds = this.thresholds;
-      const temperatureDeltas = this.temperatureDeltas;
       if (Math.abs(temperatureDeltas.quarterTemperatureDelta) > thresholds.deltaMax.quarter) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.quarter has been exceeded!');
       }
@@ -359,7 +359,7 @@ export class Thermostat {
     const historyLastQuarter = historyLastHalfHour.filter(e => e.date >= new Date(now - 900000));
 
     // tslint:disable-next-line: max-line-length
-    this.platform.logger.debug('Thermostat.temperatureDeltas -- ', historyLastQuarter);
+    this.platform.logger.debug('Thermostat.temperatureDeltas -- historyLastQuarter', historyLastQuarter);
 
     // tslint:disable-next-line: max-line-length
     const quarterTemperatureDelta: number = Math.min.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.max.apply(Math, historyLastQuarter.map(e => e.temperature));
