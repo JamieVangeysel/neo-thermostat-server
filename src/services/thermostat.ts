@@ -116,8 +116,9 @@ export class Thermostat {
             this.relais.activate(SwitchTypeEnum.NONE);
           }
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
-            // The system is currently heating, check if relais is active
+            // The system is currently heating, check if all relais is active
             if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
+              this.platform.logger.warn('Thermostat.evaluateChanges() -- HEAT is active but some relais are not activated!');
               this.relais.activate(SwitchTypeEnum.HEAT);
             }
             // check if we need to shutdown heater for reaching maximum temperature
