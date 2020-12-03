@@ -100,6 +100,25 @@ export class Thermostat {
 
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp delta's: ${JSON.stringify(this.temperatureDeltas)}`);
 
+      // report if delta's have been reached, inform user of this behaviour
+      const thresholds = this.thresholds;
+      const temperatureDeltas = this.temperatureDeltas;
+      if (Math.abs(temperatureDeltas.quarterTemperatureDelta) > thresholds.deltaMax.quarter) {
+        this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.quarter has been exceeded!');
+      }
+      if (Math.abs(temperatureDeltas.halfHourTemperatureDelta) > thresholds.deltaMax.halfHour) {
+        this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.halfHour has been exceeded!');
+      }
+      if (Math.abs(temperatureDeltas.oneHourTemperatureDelta) > thresholds.deltaMax.oneHour) {
+        this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.oneHour has been exceeded!');
+      }
+      if (Math.abs(temperatureDeltas.twoHourTemperatureDelta) > thresholds.deltaMax.twoHours) {
+        this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.twoHours has been exceeded!');
+      }
+      if (Math.abs(temperatureDeltas.fourHourTemperatureDelta) > thresholds.deltaMax.fourHours) {
+        this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.fourHours has been exceeded!');
+      }
+
       switch (this.state.targetHeatingCoolingState) {
         case HeatingCoolingStateEnum.OFF:
           this.platform.logger.debug('Thermostat.evaluateChanges() -- targetHeatingCoolingState is OFF, set current state to OFF');
@@ -268,16 +287,28 @@ export class Thermostat {
   private get thresholds(): TemperatureThresholds {
     // 5.2.3.3.2
 
-    if (this.currentForecast) {
-      // We have forecast data, we will add this data to out calculation to ensure nicer living conditions
-      // temperature sensor heights .1m, .6m, 1.1m, 1.7m
-      // vertical temp difference
-      const tempVerticalDeltaStanding = 4.0;
-      const tempVerticalDeltaSitting = 3.0;
+    // We have forecast data, we will add this data to out calculation to ensure nicer living conditions
+    // temperature sensor heights .1m, .6m, 1.1m, 1.7m
+    // vertical temp difference
+    const tempVerticalDeltaStanding = 4.0;
+    const tempVerticalDeltaSitting = 3.0;
 
-      // fan speed calculations for temperature
-      const maxFanSpeed = 0.8; // at temperature 25.5
-      const minFanSpeed = 0.15; // at temperature 22.5
+    // fan speed calculations for temperature
+    const maxFanSpeed = 0.8; // at temperature 25.5
+    const minFanSpeed = 0.15; // at temperature 22.5
+
+    const minFloorTemp = 19;
+    const maxFloorTemp = 29;
+    // Maximum temperature delta during cycling temperature when cycle in 15minutes, otherwise use ramp stats
+    const maxTemperatureCycleDelta = 1.1;
+    // Temperature drift(ramp) max during warming up or cooling down.
+    const maxQuarterTemperatureDelta = 1.1;
+    const maxHalfHourTemperatureDelta = 1.7;
+    const maxOneHourTemperatureDelta = 2.2;
+    const maxTwoHourTemperatureDelta = 2.8;
+    const maxFourHourTemperatureDelta = 3.3;
+
+    if (this.currentForecast) {
 
       const Ta = this.CurrentTemperature; // air temperature measured with dry bulb
       const Tr = this.CurrentTemperature; // mean diant temperature
@@ -294,24 +325,12 @@ export class Thermostat {
       }
       this.platform.logger.debug(`Thermostat.thresholds -- Operating Temperature: ${To}`);
 
-      const minFloorTemp = 19;
-      const maxFloorTemp = 29;
-      // Maximum temperature delta during cycling temperature when cycle in 15minutes, otherwise use ramp stats
-      const maxTemperatureCycleDelta = 1.1;
-      // Temperature drift(ramp) max during warming up or cooling down.
-      const maxQuarterTemperatureDelta = 1.1;
-      const maxHalfHourTemperatureDelta = 1.7;
-      const maxOneHourTemperatureDelta = 2.2;
-      const maxTwoHourTemperatureDelta = 2.8;
-      const maxFourHourTemperatureDelta = 3.3;
-
     } else {
       // There is no forecast data, apiKey is not set or there are connection issues.
     }
-    // const range = 0.8;
     // const setTemp = this.TargetTemperature + (this.outsideWeather.main.temp * 0.0633);
-    // const tempLow = this.CurrentTemperature <= (setTemp - range);
-    // const tempHigh = this.CurrentTemperature > (setTemp + range);
+    // const tempLow = this.CurrentTemperature <= (setTemp - maxTemperatureCycleDelta / 2);
+    // const tempHigh = this.CurrentTemperature > (setTemp + maxTemperatureCycleDelta / 2);
 
     // calculate min and max HEAT and COOL thresholds based on target temperature.
     // Later we will add integrations with outside temperature, humidity and history
@@ -320,7 +339,14 @@ export class Thermostat {
       heatingMax: this.TargetTemperature + 0.6,
       heatingMin: this.TargetTemperature - 0.5,
       coolingMax: this.TargetTemperature + 0.5,
-      coolingMin: this.TargetTemperature - 0.6
+      coolingMin: this.TargetTemperature - 0.6,
+      deltaMax: {
+        quarter: maxQuarterTemperatureDelta,
+        halfHour: maxHalfHourTemperatureDelta,
+        oneHour: maxOneHourTemperatureDelta,
+        twoHours: maxTwoHourTemperatureDelta,
+        fourHours: maxFourHourTemperatureDelta
+      }
     };
   }
 
@@ -418,6 +444,13 @@ export interface TemperatureThresholds {
   heatingMax: number;
   coolingMin: number;
   coolingMax: number;
+  deltaMax: {
+    quarter: number;
+    halfHour: number;
+    oneHour: number;
+    twoHours: number;
+    fourHours: number;
+  };
 }
 
 export enum HeatingCoolingStateEnum {
