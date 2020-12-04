@@ -36,8 +36,8 @@ export class Thermostat {
     }, rej => {
       this.platform.logger.error(rej);
     }).catch(err => {
-      this.platform.logger.error(err.message)
-    })
+      this.platform.logger.error(err.message);
+    });
 
     this.weatherInfo = new WeatherInfoService(this.platform);
     this.weatherInfo.on('forecast', async (forecast: OpenWeatherMapResponse) => {
@@ -254,6 +254,7 @@ export class Thermostat {
           this.retries++;
         }
       } // else if (currentTemp <= this.TargetTemperature) {
+      // tslint:disable-next-line: max-line-length
       //   this.platform.logger.debug('Thermostat.handleHeatState() -- turn on heating since current temperature is below the target temperature');
       //   try {
       //     this.relais.activate(SwitchTypeEnum.HEAT);
