@@ -6,7 +6,6 @@ import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info';
 
 export class Thermostat {
   private platform: Platform;
-  private uuid = 'dac7ca013a360dd79f138b620275032c172715a254f0825d30c4cf77f9b38c6d4606b06549fb0a5cff1e522c007cb46e';
   // woonkamer: 6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a
   private relais: Relais;
   private weatherInfo: WeatherInfoService;
@@ -301,7 +300,7 @@ export class Thermostat {
   }
 
   private get sensorUrl() {
-    return `https://simplintho-neo-dev.azurewebsites.net/devices/${this.uuid}`;
+    return `https://simplintho-neo-dev.azurewebsites.net/devices/${this.platform.config.temperatureSensor}`;
   }
 
   // https://shop.hellowynd.com/products/halo-home-purifier-bundle
