@@ -1,5 +1,6 @@
 import { fetch } from 'cross-fetch';
 import { Platform } from '../platform';
+import { FileSystem } from './filesystem';
 import { IRelaisSwitch, Relais, SwitchTypeEnum } from './relais';
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info';
 
@@ -12,6 +13,7 @@ export class Thermostat {
   private retries = 0;
   private currentForecast: OpenWeatherMapResponse;
   private temperatureHistory: { date: Date, temperature: number }[] = [];
+  private fs = new FileSystem();
 
   constructor(platform: Platform) {
     this.platform = platform;
@@ -24,6 +26,19 @@ export class Thermostat {
     this.relais.on('update', (switches: IRelaisSwitch[]) => {
       this.platform.config.relais.switches = switches;
     });
+
+    // check if loggin file exists, if not create csv file
+    this.fs.exists('data-log.csv').then(async (logExists) => {
+      if (!logExists) {
+        // if the file does not exist create file with apropriate csv headers
+        await this.fs.writeFile('data-log.csv', Buffer.from('date,state,target-state,temperature,target-temperature,outside-temperature,heat-index\n'));
+        await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`));
+      }
+    }, rej => {
+      this.platform.logger.error(rej);
+    }).catch(err => {
+      this.platform.logger.error(err.message)
+    })
 
     this.weatherInfo = new WeatherInfoService(this.platform);
     this.weatherInfo.on('forecast', async (forecast: OpenWeatherMapResponse) => {
@@ -48,6 +63,7 @@ export class Thermostat {
     // set update interval fur current temperature to 1 minute
     setInterval(async () => {
       await this.getSensorData();
+      await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`));
     }, 60000);
   }
 
@@ -70,6 +86,7 @@ export class Thermostat {
             date: new Date(`${lastSeen}Z`),
             temperature: data.temperature
           });
+          this.writeTemperatureHistoryAsync();
           this.platform.logger.info('Thermostat.getSensorData() -- saving temperature into temperatureHistory.');
         } else {
           this.platform.logger.warn(`Thermostat.getSensorData() -- returned stale data, skipping insert to history.`);
@@ -79,6 +96,7 @@ export class Thermostat {
           date: new Date(`${lastSeen}Z`),
           temperature: data.temperature
         });
+        this.writeTemperatureHistoryAsync();
         this.platform.logger.info('Thermostat.getSensorData() -- saving temperature into temperatureHistory.');
       }
       await this.evaluateChanges();
@@ -236,17 +254,17 @@ export class Thermostat {
           this.platform.logger.error('Thermostat.handleHeatState() -- Error while turning off the heater, try again next cycle.');
           this.retries++;
         }
-      } else if (currentTemp <= this.TargetTemperature) {
-        this.platform.logger.debug('Thermostat.handleHeatState() -- turn on heating since current temperature is below the target temperature');
-        try {
-          this.relais.activate(SwitchTypeEnum.HEAT);
-          this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
-          this.retries = 0;
-        } catch {
-          this.platform.logger.error('Thermostat.handleHeatState() -- Error while turning off the heater, try again next cycle.');
-          this.retries++;
-        }
-      }
+      } // else if (currentTemp <= this.TargetTemperature) {
+      //   this.platform.logger.debug('Thermostat.handleHeatState() -- turn on heating since current temperature is below the target temperature');
+      //   try {
+      //     this.relais.activate(SwitchTypeEnum.HEAT);
+      //     this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT;
+      //     this.retries = 0;
+      //   } catch {
+      //     this.platform.logger.error('Thermostat.handleHeatState() -- Error while turning off the heater, try again next cycle.');
+      //     this.retries++;
+      //   }
+      // }
     }
 
     this.platform.logger.debug('Thermostat.handleHeatState() -- end');
@@ -276,6 +294,10 @@ export class Thermostat {
     const T = temperature;
     const V = velocity * 3.6;
     return 13.12 + (0.6215 * T) - 11.37 * Math.pow(V, 0.16) + (0.3965 * T) * Math.pow(V, 0.16);
+  }
+
+  private async writeTemperatureHistoryAsync() {
+    await new FileSystem().writeFile('temperature-history.json', Buffer.from(JSON.stringify(this.temperatureHistory, null, 2)));
   }
 
   private get sensorUrl() {
@@ -336,10 +358,10 @@ export class Thermostat {
     // Later we will add integrations with outside temperature, humidity and history
     // cool down and warm up periods and future weather forecast
     return {
-      heatingMax: this.TargetTemperature + 0.6,
+      heatingMax: this.TargetTemperature + 0.3,
       heatingMin: this.TargetTemperature - 0.5,
       coolingMax: this.TargetTemperature + 0.5,
-      coolingMin: this.TargetTemperature - 0.6,
+      coolingMin: this.TargetTemperature - 0.3,
       deltaMax: {
         quarter: maxQuarterTemperatureDelta,
         halfHour: maxHalfHourTemperatureDelta,
