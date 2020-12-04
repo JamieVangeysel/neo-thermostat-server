@@ -16,5 +16,8 @@
 - 6 batteries: https://www.benl.ebay.be/itm/6PCS-Battery-26650-12800mAh-3-7V-BRC-Li-ion-Rechargeable-Bateria-for-Flash-New/333307936380  
 
 ### Refs
+- Raspberry: https://www.sossolutions.nl/raspberry-pi-4-model-b-4gb
 - Arduino pro mini power: https://www.iot-experiments.com/arduino-pro-mini-power-consumption/
 - Arduino pro mini 1MHz: https://www.iot-experiments.com/arduino-pro-mini-1mhz-in-arduino-ide/
+- multiple rf: https://create.arduino.cc/projecthub/humblehacker/mapping-household-temperature-flow-with-cheap-sensors-6a36c3?ref=tag&ref_id=thermostat&offset=1
+- long range rf module: https://www.ebay.co.uk/itm/NRF24L01-PA-LNA-SMA-Antenna-Wireless-Transceiver-communication-module-2-4G-1100m/310651702557
