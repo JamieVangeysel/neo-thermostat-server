@@ -65,7 +65,7 @@ export class ConfigService extends EventEmitter {
     const defaultConfig: IConfig = {
       version: 2,
       hostname: 'localhost',
-      port: 8121,
+      port: 8080,
       weatherMapApiKey: '',
       temperatureSensor: '',
       mongoDB: {
