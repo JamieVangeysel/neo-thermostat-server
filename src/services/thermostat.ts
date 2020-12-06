@@ -114,7 +114,7 @@ export class Thermostat {
     try {
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Current temperature: ${this.state.currentTemperature}`);
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Target temperature: ${this.state.targetTemperature}`);
-      this.platform.logger.debug(`Thermostat.evaluateChanges() -- State info; Current: ${this.state.targetHeatingCoolingState}, Target: ${this.state.currentHeatingCoolingState}`);
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- State info; Current: ${this.state.currentHeatingCoolingState}, Target: ${this.state.targetHeatingCoolingState}`);
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp thresholds's: ${JSON.stringify(thresholds)}`);
 
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp delta's: ${JSON.stringify(temperatureDeltas)}`);
