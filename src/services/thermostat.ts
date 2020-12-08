@@ -364,17 +364,52 @@ export class Thermostat {
     const coolingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2);
     const coolingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2);
 
+    let heatingMinTH = 0;
+    let heatingMaxTH = 0;
+    // let coolingMinTH = 0;
+    // let coolingMaxTH = 0;
+
     const deltas = this.temperatureDeltas;
 
-    // calculate the heating Minimum based on temperature delta's and normal operating temperatures
-    if (this.CurrentTemperature < coolingMin) {
-      // curent temp is lower then allowed minimum
+    // check if there is a delta history if not run cold start
+    if (this.temperatureHistory.length > 0) {
+      // calculate the heating Minimum based on temperature delta's and normal operating temperatures
+      // if history min temp is lower than allowed min set history min to current min
+      const lowestDelta = Math.min(
+        deltas.quarterTemperatureDelta.min,
+        deltas.halfHourTemperatureDelta.min,
+        deltas.oneHourTemperatureDelta.min,
+        deltas.twoHourTemperatureDelta.min,
+        deltas.fourHourTemperatureDelta.min
+      );
+      if (lowestDelta < heatingMin) {
+        heatingMinTH = lowestDelta;
+        heatingMaxTH = heatingMinTH + maxTemperatureCycleDelta - correctionTemp;
+      }
+    } else {
+      // HEATING cold start set min to current temp is lower than allowed min temp
+      if (this.CurrentTemperature < heatingMin) {
+        // curent temp is lower then allowed minimum
+        heatingMinTH = this.CurrentTemperature;
+        heatingMaxTH = heatingMinTH + maxTemperatureCycleDelta - correctionTemp;
+      } else {
+        heatingMinTH = heatingMin;
+        heatingMaxTH = heatingMax;
+      }
+
+      // COOLING cold start set max to current temp is higher than allowed max temp
+      // if (this.CurrentTemperature > coolingMax) {
+      //   coolingMaxTH = this.CurrentTemperature;
+      //   coolingMinTH = coolingMaxTH - maxTemperatureCycleDelta + correctionTemp;
+      // } else {
+      //   coolingMinTH = coolingMin;
+      //   coolingMaxTH = coolingMax;
+      // }
     }
 
-
     return {
-      heatingMax,
-      heatingMin,
+      heatingMax: heatingMaxTH,
+      heatingMin: heatingMinTH,
       coolingMax,
       coolingMin,
       deltaMax: {
