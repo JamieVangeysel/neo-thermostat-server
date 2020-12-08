@@ -359,8 +359,8 @@ export class Thermostat {
     // cool down and warm up periods and future weather forecast
     return {
       heatingMax: this.TargetTemperature + 0.3,
-      heatingMin: this.TargetTemperature - 0.5,
-      coolingMax: this.TargetTemperature + 0.5,
+      heatingMin: this.TargetTemperature - 0.25,
+      coolingMax: this.TargetTemperature + 0.25,
       coolingMin: this.TargetTemperature - 0.3,
       deltaMax: {
         quarter: maxQuarterTemperatureDelta,
