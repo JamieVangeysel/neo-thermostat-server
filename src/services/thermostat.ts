@@ -120,19 +120,19 @@ export class Thermostat {
       this.platform.logger.debug(`Thermostat.evaluateChanges() -- Temp delta's: ${JSON.stringify(temperatureDeltas)}`);
 
       // report if delta's have been reached, inform user of this behaviour
-      if (temperatureDeltas.quarterTemperatureDelta > thresholds.deltaMax.quarter) {
+      if (temperatureDeltas.quarterTemperatureDelta.delta > thresholds.deltaMax.quarter) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.quarter has been exceeded!');
       }
-      if (temperatureDeltas.halfHourTemperatureDelta > thresholds.deltaMax.halfHour) {
+      if (temperatureDeltas.halfHourTemperatureDelta.delta > thresholds.deltaMax.halfHour) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.halfHour has been exceeded!');
       }
-      if (temperatureDeltas.oneHourTemperatureDelta > thresholds.deltaMax.oneHour) {
+      if (temperatureDeltas.oneHourTemperatureDelta.delta > thresholds.deltaMax.oneHour) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.oneHour has been exceeded!');
       }
-      if (temperatureDeltas.twoHourTemperatureDelta > thresholds.deltaMax.twoHours) {
+      if (temperatureDeltas.twoHourTemperatureDelta.delta > thresholds.deltaMax.twoHours) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.twoHours has been exceeded!');
       }
-      if (temperatureDeltas.fourHourTemperatureDelta > thresholds.deltaMax.fourHours) {
+      if (temperatureDeltas.fourHourTemperatureDelta.delta > thresholds.deltaMax.fourHours) {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.fourHours has been exceeded!');
       }
 
@@ -322,6 +322,7 @@ export class Thermostat {
     const minFloorTemp = 19;
     const maxFloorTemp = 29;
     // Maximum temperature delta during cycling temperature when cycle in 15minutes, otherwise use ramp stats
+    const correctionTemp = .275;
     const maxTemperatureCycleDelta = 1.1;
     // Temperature drift(ramp) max during warming up or cooling down.
     const maxQuarterTemperatureDelta = 1.1;
@@ -330,9 +331,8 @@ export class Thermostat {
     const maxTwoHourTemperatureDelta = 2.8;
     const maxFourHourTemperatureDelta = 3.3;
 
+    const Ta = this.CurrentTemperature; // air temperature measured with dry bulb
     if (this.currentForecast) {
-
-      const Ta = this.CurrentTemperature; // air temperature measured with dry bulb
       const Tr = this.CurrentTemperature; // mean diant temperature
 
       const v = 50.49 - (4.4047 * Ta) + (0.096425 * Math.pow(Ta, 2));
@@ -357,11 +357,26 @@ export class Thermostat {
     // calculate min and max HEAT and COOL thresholds based on target temperature.
     // Later we will add integrations with outside temperature, humidity and history
     // cool down and warm up periods and future weather forecast
+
+    // calculate dynamic heating and colling min and max based on delta's
+    const heatingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2);
+    const heatingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2);
+    const coolingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2);
+    const coolingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2);
+
+    const deltas = this.temperatureDeltas;
+
+    // calculate the heating Minimum based on temperature delta's and normal operating temperatures
+    if (this.CurrentTemperature < coolingMin) {
+      // curent temp is lower then allowed minimum
+    }
+
+
     return {
-      heatingMax: this.TargetTemperature + 0.3,
-      heatingMin: this.TargetTemperature - 0.25,
-      coolingMax: this.TargetTemperature + 0.25,
-      coolingMin: this.TargetTemperature - 0.3,
+      heatingMax,
+      heatingMin,
+      coolingMax,
+      coolingMin,
       deltaMax: {
         quarter: maxQuarterTemperatureDelta,
         halfHour: maxHalfHourTemperatureDelta,
@@ -374,32 +389,51 @@ export class Thermostat {
 
   private get temperatureDeltas(): TemperatureDeltaHistory {
     const now: number = new Date().getTime();
-    const historyLastFourHour = this.temperatureHistory.filter(e => e.date >= new Date(now - 14400000));
-    const historyLastTwoHour = historyLastFourHour.filter(e => e.date >= new Date(now - 7200000));
-    const historyLastOneHour = historyLastTwoHour.filter(e => e.date >= new Date(now - 3600000));
-    const historyLastHalfHour = historyLastOneHour.filter(e => e.date >= new Date(now - 1800000));
-    const historyLastQuarter = historyLastHalfHour.filter(e => e.date >= new Date(now - 900000));
+    const hisAll = this.temperatureHistory;
+    const hisLFH = hisAll.filter(e => e.date >= new Date(now - 14400000));
+    const hisLTH = hisLFH.filter(e => e.date >= new Date(now - 7200000));
+    const hisLOH = hisLTH.filter(e => e.date >= new Date(now - 3600000));
+    const hisLHH = hisLOH.filter(e => e.date >= new Date(now - 1800000));
+    const hisLQu = hisLHH.filter(e => e.date >= new Date(now - 900000));
 
     // tslint:disable-next-line: max-line-length
-    this.platform.logger.debug('Thermostat.temperatureDeltas -- historyLastQuarter', historyLastQuarter);
-
-    // tslint:disable-next-line: max-line-length
-    const quarterTemperatureDelta: number = Math.max.apply(Math, historyLastQuarter.map(e => e.temperature)) - Math.min.apply(Math, historyLastQuarter.map(e => e.temperature));
-    // tslint:disable-next-line: max-line-length
-    const halfHourTemperatureDelta: number = Math.max.apply(Math, historyLastHalfHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastHalfHour.map(e => e.temperature));
-    // tslint:disable-next-line: max-line-length
-    const oneHourTemperatureDelta: number = Math.max.apply(Math, historyLastOneHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastOneHour.map(e => e.temperature));
-    // tslint:disable-next-line: max-line-length
-    const twoHourTemperatureDelta: number = Math.max.apply(Math, historyLastTwoHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastTwoHour.map(e => e.temperature));
-    // tslint:disable-next-line: max-line-length
-    const fourHourTemperatureDelta: number = Math.max.apply(Math, historyLastFourHour.map(e => e.temperature)) - Math.min.apply(Math, historyLastFourHour.map(e => e.temperature));
+    const quTDm = Math.min(...hisLQu.map(e => e.temperature));
+    const quTDM = Math.max(...hisLQu.map(e => e.temperature));
+    const hHTDm = Math.min(...hisLHH.map(e => e.temperature));
+    const hHTDM = Math.max(...hisLHH.map(e => e.temperature));
+    const oHTDm = Math.min(...hisLOH.map(e => e.temperature));
+    const oHTDM = Math.max(...hisLOH.map(e => e.temperature));
+    const tHTDm = Math.min(...hisLTH.map(e => e.temperature));
+    const tHTDM = Math.max(...hisLTH.map(e => e.temperature));
+    const fHTDm = Math.min(...hisLFH.map(e => e.temperature));
+    const fHTDM = Math.max(...hisLFH.map(e => e.temperature));
 
     return {
-      quarterTemperatureDelta,
-      halfHourTemperatureDelta,
-      oneHourTemperatureDelta,
-      twoHourTemperatureDelta,
-      fourHourTemperatureDelta
+      quarterTemperatureDelta: {
+        min: quTDm,
+        max: quTDM,
+        delta: quTDM - quTDm
+      },
+      halfHourTemperatureDelta: {
+        min: hHTDm,
+        max: hHTDM,
+        delta: hHTDM - hHTDm
+      },
+      oneHourTemperatureDelta: {
+        min: oHTDm,
+        max: oHTDM,
+        delta: oHTDM - oHTDm
+      },
+      twoHourTemperatureDelta: {
+        min: tHTDm,
+        max: tHTDM,
+        delta: tHTDM - tHTDm
+      },
+      fourHourTemperatureDelta: {
+        min: fHTDm,
+        max: fHTDM,
+        delta: fHTDM - fHTDm
+      }
     };
   }
 
@@ -510,9 +544,15 @@ interface DeviceReponse {
 }
 
 export interface TemperatureDeltaHistory {
-  quarterTemperatureDelta: number;
-  halfHourTemperatureDelta: number;
-  oneHourTemperatureDelta: number;
-  twoHourTemperatureDelta: number;
-  fourHourTemperatureDelta: number;
+  quarterTemperatureDelta: TemperatureDeltaHistoryEntry;
+  halfHourTemperatureDelta: TemperatureDeltaHistoryEntry;
+  oneHourTemperatureDelta: TemperatureDeltaHistoryEntry;
+  twoHourTemperatureDelta: TemperatureDeltaHistoryEntry;
+  fourHourTemperatureDelta: TemperatureDeltaHistoryEntry;
+}
+
+export interface TemperatureDeltaHistoryEntry {
+  min: number;
+  max: number;
+  delta: number;
 }
