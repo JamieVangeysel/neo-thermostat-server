@@ -408,8 +408,8 @@ export class Thermostat {
     }
 
     return {
-      heatingMax,//: heatingMaxTH,
-      heatingMin,//: heatingMinTH,
+      heatingMax, // : heatingMaxTH,
+      heatingMin, // : heatingMinTH,
       coolingMax,
       coolingMin,
       deltaMax: {
