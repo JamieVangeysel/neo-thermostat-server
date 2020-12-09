@@ -322,8 +322,8 @@ export class Thermostat {
     const minFloorTemp = 19;
     const maxFloorTemp = 29;
     // Maximum temperature delta during cycling temperature when cycle in 15minutes, otherwise use ramp stats
-    const correctionTemp = .275;
     const maxTemperatureCycleDelta = 1.1;
+    const correctionTemp = maxTemperatureCycleDelta / 4;
     // Temperature drift(ramp) max during warming up or cooling down.
     const maxQuarterTemperatureDelta = 1.1;
     const maxHalfHourTemperatureDelta = 1.7;
@@ -360,8 +360,8 @@ export class Thermostat {
 
     // calculate dynamic heating and colling min and max based on delta's
     const heatingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2) - correctionTemp;
-    const heatingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2) + correctionTemp;
-    const coolingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2) - correctionTemp;
+    const heatingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2) + (correctionTemp / 2);
+    const coolingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2) - (correctionTemp / 2);
     const coolingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2) + correctionTemp;
 
     let heatingMinTH = 0;
