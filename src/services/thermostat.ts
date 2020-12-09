@@ -359,10 +359,10 @@ export class Thermostat {
     // cool down and warm up periods and future weather forecast
 
     // calculate dynamic heating and colling min and max based on delta's
-    const heatingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2);
-    const heatingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2);
-    const coolingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2);
-    const coolingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2);
+    const heatingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2) - correctionTemp;
+    const heatingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2) + correctionTemp;
+    const coolingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2) - correctionTemp;
+    const coolingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2) + correctionTemp;
 
     let heatingMinTH = 0;
     let heatingMaxTH = 0;
