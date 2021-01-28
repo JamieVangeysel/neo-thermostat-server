@@ -1,142 +1,110 @@
-import { EventEmitter } from 'events';
-import express from 'express';
-import { Platform } from '../platform';
-import { Thermostat, HeatingCoolingStateEnum } from './thermostat';
+import http from 'http'
+import { Platform } from '../platform'
+import { Thermostat } from './thermostat'
 
 const okResponse = {
   success: true
-};
+}
 const valueResponse = (value: any) => {
-  return { value };
-};
+  return { value }
+}
 
-export class HttpListener extends EventEmitter {
-  private platform: Platform;
-  private app: express.Express;
-  private thermostat: Thermostat;
+export class HttpListener {
+  private platform: Platform
+  private thermostat: Thermostat
 
   constructor(platform: Platform) {
-    super();
-    this.platform = platform;
+    this.platform = platform
   }
 
   configure(hostname: string, port: number, thermostat: Thermostat) {
-    this.platform.logger.debug(`HttpListener.configure() -- start`);
-    this.thermostat = thermostat;
-    this.app = express();
-    this.app.use(express.json());
+    this.platform.logger.debug(`HttpListener.configure() -- start`)
+    this.thermostat = thermostat
 
-    this.configureRoutes();
+    const server = http.createServer((req, res) => {
+      let body = ''
 
-    // Add error handling middleware that Express will call
-    // in the event of malformed JSON.
-    this.app.use((err, req, res, next) => {
-      // 'SyntaxError: Unexpected token in JSON at position 0'
-      // err.message;
-      next(err);
-    });
+      switch (`${req.url}|${req.method}`) {
+        case '/|GET':
+          this.platform.logger.debug(`HttpListener.get() -- received request '/', returning current status.`)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(valueResponse(this.thermostat.State)))
+          break
 
-    this.app.listen(port, hostname, () => {
-      return this.platform.logger.log(`HttpListener.configure() -- server is listening on ${hostname}:${port}`);
-    });
-    this.platform.logger.debug(`HttpListener.configure() -- end`);
-  }
+        case '/current-temperature|GET':
+          this.platform.logger.debug(`HttpListener.get() -- received request '/current-temperature', returning current temperature.`)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(valueResponse(this.thermostat.CurrentTemperature)))
+          break
 
-  private configureRoutes() {
-    //#region gets
-    this.app.get('/', (req, res) => {
-      this.platform.logger.debug(`HttpListener.get() -- received request '/', returning current status.`);
-      res.send(valueResponse(this.thermostat.State));
-    });
+        case '/target-temperature|GET':
+          this.platform.logger.debug(`HttpListener.get() -- received request '/target-temperature', returning target temperature.`)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(valueResponse(this.thermostat.TargetTemperature)))
+          break
 
-    this.app.get('/current-temperature', (req, res) => {
-      this.platform.logger.debug(`HttpListener.get() -- received request '/current-temperature', returning current temperature.`);
-      res.send(valueResponse(this.thermostat.CurrentTemperature));
-    });
+        case '/target-temperature|POST':
+          this.platform.logger.debug(`HttpListener.post() -- received request POST '/target-temperature', setting target temperature.`)
 
-    this.app.get('/target-temperature', (req, res) => {
-      this.platform.logger.debug(`HttpListener.get() -- received request '/target-temperature', returning target temperature.`);
-      res.send(valueResponse(this.thermostat.TargetTemperature));
-    });
+          body = ''
+          req.on('data', chunk => {
+            body += chunk
+          })
 
-    this.app.get('/current-state', (req, res) => {
-      this.platform.logger.debug(`HttpListener.get() -- received request '/current-state', returning current state.`);
-      res.send(valueResponse(this.thermostat.CurrentHeatingCoolingState));
-    });
+          req.on('end', () => {
+            try {
+              const { value } = JSON.parse(body)
+              this.thermostat.TargetTemperature = value
+              this.platform.logger.debug('Set target temperature to: ' + value)
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify(okResponse))
+            } catch (err) {
+              res.writeHead(500, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify(err))
+            }
+          })
+          break
 
-    this.app.get('/target-state', (req, res) => {
-      this.platform.logger.debug(`HttpListener.get() -- received request '/target-state', returning target state.`);
-      res.send(valueResponse(this.thermostat.TargetHeatingCoolingState));
-    });
+        case '/current-state|GET':
+          this.platform.logger.debug(`HttpListener.get() -- received request '/current-state', returning current state.`)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(valueResponse(this.thermostat.CurrentHeatingCoolingState)))
+          break
 
-    // this.app.get('/cooling-threshold', (req, res) => {
-    //   this.platform.logger.debug(`received request '/cooling-threshold', returning cooling threshold.`);
-    //   res.send(valueResponse(this.thermostat.CoolingThresholdTemperature));
-    // });
+        case '/target-state|GET':
+          this.platform.logger.debug(`HttpListener.get() -- received request '/target-state', returning target state.`)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(valueResponse(this.thermostat.TargetHeatingCoolingState)))
+          break
 
-    // this.app.get('/heating-threshold', (req, res) => {
-    //   this.platform.logger.debug(`received request '/heating-threshold', returning heating threshold.`);
-    //   res.send(valueResponse(this.thermostat.HeatingThresholdTemperature));
-    // });
-    //#endregion
+        case '/target-state|POST':
+          this.platform.logger.debug(`HttpListener.post() -- received request POST '/target-state', setting target state.`)
 
-    //#region posts
-    this.app.post('/target-temperature', (req, res) => {
-      this.platform.logger.debug(`HttpListener.post() -- received request POST '/target-temperature', setting target temperature.`);
-      try {
-        const targetTemperature: IPostNumberValue = req.body;
-        this.thermostat.TargetTemperature = targetTemperature.value;
-        this.platform.logger.debug('Set target temperature to: ' + targetTemperature.value);
-        res.send(okResponse);
-      } catch (err) {
-        res.status(500);
-        res.send(err);
+          body = ''
+          req.on('data', chunk => {
+            body += chunk
+          })
+
+          req.on('end', () => {
+            try {
+              const { value } = JSON.parse(body)
+              this.thermostat.TargetHeatingCoolingState = value
+              this.platform.logger.debug('Set target state to: ' + value)
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify(okResponse))
+            } catch (err) {
+              res.writeHead(500, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify(err))
+            }
+          })
+          break
       }
-    });
-    this.app.post('/target-state', (req, res) => {
-      this.platform.logger.debug(`HttpListener.post() -- received request POST '/target-state', setting target state.`);
-      try {
-        const targetHeatingCoolingState: IPostHeatingCoolingStateValue = req.body;
-        this.thermostat.TargetHeatingCoolingState = targetHeatingCoolingState.value;
-        this.platform.logger.debug('Set target state to: ' + targetHeatingCoolingState.value);
-        res.send(okResponse);
-      } catch (err) {
-        res.status(500);
-        res.send(err);
-      }
-    });
-    // this.app.post('/cooling-threshold', (req, res) => {
-    //   this.platform.logger.debug(`received request POST '/cooling-threshold', setting cooling threshold.`);
-    //   try {
-    //     const coolingThresholdTemperature: IPostNumberValue = req.body;
-    //     this.thermostat.CoolingThresholdTemperature = coolingThresholdTemperature.value;
-    //     this.platform.logger.debug('Set cooling threshold to: ' + coolingThresholdTemperature.value);
-    //     res.send(okResponse);
-    //   } catch (err) {
-    //     res.status(500);
-    //     res.send(err);
-    //   }
-    // });
-    // this.app.post('/heating-threshold', (req, res) => {
-    //   this.platform.logger.debug(`received request POST '/heating-threshold', setting heating threshold.`);
-    //   try {
-    //     const heatingThresholdTemperature: IPostNumberValue = req.body;
-    //     this.thermostat.HeatingThresholdTemperature = heatingThresholdTemperature.value;
-    //     this.platform.logger.debug('Set heating threshold to: ' + heatingThresholdTemperature.value);
-    //     res.send(okResponse);
-    //   } catch (err) {
-    //     res.status(500);
-    //     res.send(err);
-    //   }
-    // });
-    //#endregion
+    })
+
+    server.listen(port, hostname, () => {
+      console.log(`HttpListener.configure() -- server listening on ${hostname}:${port}`)
+    })
+
+    this.platform.logger.debug(`HttpListener.configure() -- end`)
   }
-}
-
-interface IPostNumberValue {
-  value: number;
-}
-
-interface IPostHeatingCoolingStateValue {
-  value: HeatingCoolingStateEnum;
 }
