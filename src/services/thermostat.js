@@ -1,20 +1,75 @@
-import { fetch } from 'cross-fetch'
-import { Platform } from '../platform'
-import { FileSystem } from './filesystem'
-import { IRelaisSwitch, Relais, SwitchTypeEnum } from './relais'
-import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info'
+const fetch = require('cross-fetch')
+const FileSystem = require('./filesystem').default
+const { Relais, SwitchTypeEnum } = require('./relais')
+const WeatherInfoService = require('./weather-info').default
 
-export class Thermostat {
-  private platform: Platform
+/**
+ * @description Thermostat
+ * @export
+ * @class Thermostat
+ */
+class Thermostat {
+  /**
+   * @description
+   * @private
+   * @type {Platform}
+   * @memberof Thermostat
+   */
+  platform
+
   // woonkamer: 6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a
-  private relais: Relais
-  private weatherInfo: WeatherInfoService
-  private retries = 0
-  private currentForecast: OpenWeatherMapResponse
-  private temperatureHistory: { date: Date, temperature: number }[] = []
-  private fs = new FileSystem()
+  /**
+   * @description
+   * @private
+   * @type {Relais}
+   * @memberof Thermostat
+   */
+  relais
 
-  constructor(platform: Platform) {
+  /**
+   * @description
+   * @private
+   * @type {WeatherInfoService}
+   * @memberof Thermostat
+   */
+  weatherInfo
+
+  /**
+   * @description
+   * @private
+   * @type {number}
+   * @memberof Thermostat
+   */
+  retries = 0
+
+  /**
+   * @description
+   * @private
+   * @type {OpenWeatherMapResponse}
+   * @memberof Thermostat
+   */
+  currentForecast
+
+  /**
+   * @description
+   * @private
+   * @type {{ date: Date, temperature: number }[]}
+   * @memberof Thermostat
+   */
+  temperatureHistory = []
+  /**
+   * @description
+   * @private
+   * @memberof Thermostat
+   */
+  fs = new FileSystem()
+
+  /**
+   * Creates an instance of Thermostat.
+   * @param {Platform} platform
+   * @memberof Thermostat
+   */
+  constructor(platform) {
     this.platform = platform
 
     this.platform.logger.debug(`Thermostat.constructor() -- Constructed new instance of Thermostat()`)
@@ -22,7 +77,8 @@ export class Thermostat {
     this.getSensorData()
 
     this.relais = new Relais(this.platform)
-    this.relais.on('update', (switches: IRelaisSwitch[]) => {
+
+    this.relais.on('update', (switches) => {
       this.platform.config.relais.switches = switches
     })
 
@@ -40,7 +96,7 @@ export class Thermostat {
     })
 
     this.weatherInfo = new WeatherInfoService(this.platform)
-    this.weatherInfo.on('forecast', async (forecast: OpenWeatherMapResponse) => {
+    this.weatherInfo.on('forecast', async (forecast) => {
       this.platform.logger.debug(`Thermostat.weatherInfo.on('forecast')`, forecast.main)
       try {
         const ok = await this.platform.database.insertIntoCollection('forecastHistory', {
@@ -69,8 +125,10 @@ export class Thermostat {
   async getSensorData() {
     try {
       const result = await fetch(this.sensorUrl)
-      const data = (await result.json()) as DeviceReponse
-      const lastSeen: Date = data.lastSeen
+      /** @type {DeviceReponse} */
+      const data = (await result.json())
+      /** @type {Date} */
+      const lastSeen = data.lastSeen
 
       this.state.currentTemperature = data.temperature
       this.state.currentRelativeHumidity = data.humidity
@@ -78,8 +136,13 @@ export class Thermostat {
 
       this.platform.logger.info(`Thermostat.getSensorData() -- data is from ${lastSeen}.`)
       if (this.temperatureHistory.length > 0) {
-        const lastHistoryEntry: { date: Date, temperature: number }
-          = this.temperatureHistory[this.temperatureHistory.length - 1]
+        /** 
+         * @type {{
+         *    date: Date,
+         *    temperature: number
+         * }} 
+         */
+        const lastHistoryEntry = this.temperatureHistory[this.temperatureHistory.length - 1]
         if (lastHistoryEntry.date !== lastSeen) {
           this.temperatureHistory.push({
             date: new Date(`${lastSeen}Z`),
@@ -137,6 +200,7 @@ export class Thermostat {
         this.platform.logger.warn('Thermostat.evaluateChanges() -- thresholds.deltaMax.fourHours has been exceeded!')
       }
 
+      this.platform.logger.debug(`Thermostat.evaluateChanges() -- switch this.state.targetHeatingCoolingState`)
       switch (this.state.targetHeatingCoolingState) {
         case HeatingCoolingStateEnum.OFF:
           this.platform.logger.debug('Thermostat.evaluateChanges() -- targetHeatingCoolingState is OFF, set current state to OFF')
@@ -147,6 +211,7 @@ export class Thermostat {
           return
 
         case HeatingCoolingStateEnum.HEAT:
+          this.platform.logger.debug(`Thermostat.evaluateChanges() -- handleHeatState`)
           await this.handleHeatState(currentTemp)
           return
 
@@ -203,10 +268,17 @@ export class Thermostat {
     }
   }
 
-  private async handleHeatState(currentTemp: number) {
+  /**
+   * @description
+   * @private
+   * @param {number} currentTemp
+   * @memberof Thermostat
+   */
+  async handleHeatState(currentTemp) {
     this.platform.logger.debug('Thermostat.handleHeatState() -- start')
 
     this.platform.logger.debug('Thermostat.handleHeatState() -- targetHeatingCoolingState is HEAT, check if currently heating')
+    this.platform.logger.debug('ÏThermostat.handleHeatState() -- config ', this.platform.config.relais.switches)
     if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
       this.platform.logger.debug('system state is heating, turn off COOL')
       this.relais.activate(SwitchTypeEnum.NONE)
@@ -271,7 +343,15 @@ export class Thermostat {
     this.platform.logger.debug('Thermostat.handleHeatState() -- end')
   }
 
-  private calculateHeatIndex(temperature: number, relativeHumidity: number) {
+  /**
+   * @description
+   * @private
+   * @param {number} temperature
+   * @param {number} relativeHumidity
+   * @return {*} 
+   * @memberof Thermostat
+   */
+  calculateHeatIndex(temperature, relativeHumidity) {
     const T = (temperature * 1.8) + 32
     const RH = relativeHumidity
     let ADJUSTMENT = 0
@@ -291,23 +371,49 @@ export class Thermostat {
     return ((HI + ADJUSTMENT - 32) / 1.8)
   }
 
-  private calculateWindChillFactor(temperature: number, velocity: number) {
+  /**
+   * @description
+   * @private
+   * @param {number} temperature
+   * @param {number} velocity
+   * @return {*} 
+   * @memberof Thermostat
+   */
+  calculateWindChillFactor(temperature, velocity) {
     const T = temperature
     const V = velocity * 3.6
     return 13.12 + (0.6215 * T) - 11.37 * Math.pow(V, 0.16) + (0.3965 * T) * Math.pow(V, 0.16)
   }
 
-  private async writeTemperatureHistoryAsync() {
+  /**
+   * @description
+   * @private
+   * @memberof Thermostat
+   */
+  async writeTemperatureHistoryAsync() {
     await new FileSystem().writeFile('temperature-history.json', Buffer.from(JSON.stringify(this.temperatureHistory, null, 2)))
   }
 
-  private get sensorUrl() {
+  /**
+   * @description
+   * @readonly
+   * @private
+   * @memberof Thermostat
+   */
+  get sensorUrl() {
     return `https://simplintho-neo-dev.azurewebsites.net/devices/${this.platform.config.temperatureSensor}`
   }
 
-  // https://shop.hellowynd.com/products/halo-home-purifier-bundle
-  // https://airthinx.io/iaq/
-  private get thresholds(): TemperatureThresholds {
+  /**
+   * @description
+   * https://shop.hellowynd.com/products/halo-home-purifier-bundle
+   * https://airthinx.io/iaq/
+   * @readonly
+   * @private
+   * @type {TemperatureThresholds}
+   * @memberof Thermostat
+   */
+  get thresholds() {
     // 5.2.3.3.2
 
     // We have forecast data, we will add this data to out calculation to ensure nicer living conditions
@@ -340,8 +446,8 @@ export class Thermostat {
       const v = 50.49 - (4.4047 * Ta) + (0.096425 * Math.pow(Ta, 2))
       this.platform.logger.debug(`Thermostat.thresholds -- Desired fan speed: ${v}m/s.`)
 
-      // Operating temperature
-      let To: number
+      /** @type {number} Operating temperature */
+      let To
       if (v < 0.1) {
         To = (Ta + Tr) / 2
       } else {
@@ -424,8 +530,16 @@ export class Thermostat {
     }
   }
 
-  private get temperatureDeltas(): TemperatureDeltaHistory {
-    const now: number = new Date().getTime()
+  /**
+   * @description
+   * @readonly
+   * @private
+   * @type {TemperatureDeltaHistory}
+   * @memberof Thermostat
+   */
+  get temperatureDeltas() {
+    /** @type {number} */
+    const now = new Date().getTime()
     const hisAll = this.temperatureHistory
     const hisLFH = hisAll.filter(e => e.date >= new Date(now - 14400000))
     const hisLTH = hisLFH.filter(e => e.date >= new Date(now - 7200000))
@@ -474,122 +588,370 @@ export class Thermostat {
     }
   }
 
-  // https://www.wrh.noaa.gov/psr/general/safety/heat/heatindex.png
-  // https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
-  public get HeatIndex(): number {
+  /**
+   * @description
+   * https://www.wrh.noaa.gov/psr/general/safety/heat/heatindex.png
+   * https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
+   * @readonly
+   * @type {number}
+   * @memberof Thermostat
+   */
+  get HeatIndex() {
     return this.calculateHeatIndex(this.CurrentTemperature, this.CurrentRelativeHumidity)
   }
 
-  private get state(): ThermostatState {
+  /**
+   * @description
+   * @private
+   * @type {ThermostatState}
+   * @memberof Thermostat
+   */
+  get state() {
     return this.platform.config.thermostatState
   }
 
-  private set state(value: ThermostatState) {
+  /**
+   * @description
+   * @param {ThermostatState} value
+   * @private
+   * @memberof Thermostat
+   */
+  set state(value) {
     this.platform.config.thermostatState = value
   }
 
-  public get State(): ThermostatState {
+  /**
+   * @description
+   * @readonly
+   * @type {ThermostatState}
+   * @memberof Thermostat
+   */
+  get State() {
     return this.state
   }
 
-  public get CurrentTemperature(): number {
+  /**
+   * @description
+   * @readonly
+   * @type {number}
+   * @memberof Thermostat
+   */
+  get CurrentTemperature() {
     return this.state.currentTemperature
   }
 
-  public get CurrentRelativeHumidity(): number {
+  /**
+   * @description
+   * @readonly
+   * @type {number}
+   * @memberof Thermostat
+   */
+  get CurrentRelativeHumidity() {
     return this.state.currentRelativeHumidity
   }
 
-  public get TargetTemperature(): number {
+  /**
+   * @description
+   * @type {number}
+   * @memberof Thermostat
+   */
+  get TargetTemperature() {
     return this.state.targetTemperature
   }
 
-  public set TargetTemperature(value: number) {
+  /**
+   * @description
+   * @param {number} value
+   * @memberof Thermostat
+   */
+  set TargetTemperature(value) {
     this.state.targetTemperature = value
     this.evaluateChanges()
   }
 
-  public get CurrentHeatingCoolingState(): HeatingCoolingStateEnum {
+  /**
+   * @description
+   * @readonly
+   * @type {HeatingCoolingStateEnum}
+   * @memberof Thermostat
+   */
+  get CurrentHeatingCoolingState() {
     return this.state.currentHeatingCoolingState
   }
 
-  public get TargetHeatingCoolingState(): HeatingCoolingStateEnum {
+  /**
+   * @description
+   * @type {HeatingCoolingStateEnum}
+   * @memberof Thermostat
+   */
+  get TargetHeatingCoolingState() {
     return this.state.targetHeatingCoolingState
   }
 
-  public set TargetHeatingCoolingState(value: HeatingCoolingStateEnum) {
+  /**
+   * @description
+   * @param {HeatingCoolingStateEnum} value
+   * @memberof Thermostat
+   */
+  set TargetHeatingCoolingState(value) {
     this.state.targetHeatingCoolingState = value
     this.evaluateChanges()
   }
 }
 
-export interface ThermostatState {
-  currentTemperature: number
-  currentRelativeHumidity: number
-  targetTemperature: number
-  currentHeatingCoolingState: HeatingCoolingStateEnum
-  targetHeatingCoolingState: HeatingCoolingStateEnum
-  temperatureDisplayUnits: TemperatureDisplayUnits
+/**
+ * @description
+ * @class ThermostatState
+ */
+class ThermostatState {
+  /**
+   * @description
+   * @type {number}
+   * @memberof ThermostatState
+   */
+  currentTemperature
+  /**
+   * @description
+   * @type {number}
+   * @memberof ThermostatState
+   */
+  currentRelativeHumidity
+  /**
+   * @description
+   * @type {number}
+   * @memberof ThermostatState
+   */
+  targetTemperature
+  /**
+   * @description
+   * @type {HeatingCoolingStateEnum}
+   * @memberof ThermostatState
+   */
+  currentHeatingCoolingState
+  /**
+   * @description
+   * @type {HeatingCoolingStateEnum}
+   * @memberof ThermostatState
+   */
+  targetHeatingCoolingState
+  /**
+   * @description
+   * @type {TemperatureDisplayUnits}
+   * @memberof ThermostatState
+   */
+  temperatureDisplayUnits
+}
+/**
+ * @description
+ * @class TemperatureThresholds
+ */
+class TemperatureThresholds {
+  /**
+   * @description
+   * @type {number}
+   * @memberof TemperatureThresholds
+   */
+  heatingMin
+  /**
+   * @description
+   * @type {number}
+   * @memberof TemperatureThresholds
+   */
+  heatingMax
+  /**
+   * @description
+   * @type {number}
+   * @memberof TemperatureThresholds
+   */
+  coolingMin
+  /**
+   * @description
+   * @type {number}
+   * @memberof TemperatureThresholds
+   */
+  coolingMax
+  /**
+   * @description
+   * @type {{
+   *     quarter: number
+   *     halfHour: number
+   *     oneHour: number
+   *     twoHours: number
+   *     fourHours: number
+   *   }}
+   * @memberof TemperatureThresholds
+   */
+  deltaMax
 }
 
-export interface TemperatureThresholds {
-  heatingMin: number
-  heatingMax: number
-  coolingMin: number
-  coolingMax: number
-  deltaMax: {
-    quarter: number
-    halfHour: number
-    oneHour: number
-    twoHours: number
-    fourHours: number
-  }
+const HeatingCoolingStateEnum = {
+  OFF: 0,
+  HEAT: 1,
+  COOL: 2,
+  AUTO: 3
 }
 
-export enum HeatingCoolingStateEnum {
-  OFF = 0,
-  HEAT = 1,
-  COOL = 2,
-  AUTO = 3
+const TemperatureDisplayUnits = {
+  CELSIUS: 0,
+  FAHRENHEIT: 1
 }
 
-export enum TemperatureDisplayUnits {
-  CELSIUS = 0,
-  FAHRENHEIT = 1
+/**
+ * @description Device Response from Neo Api
+ * @class DeviceReponse
+ */
+class DeviceReponse {
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  uuid
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  name
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  mac
+  /**
+   * @type {Date}
+   * @memberof DeviceReponse
+   */
+  firstSeen
+  /**
+   * @type {Date}
+   * @memberof DeviceReponse
+   */
+  lastSeen
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  localIp
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  ipv4
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  ipv6
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  ownerUuid
+  /**
+   * @type {number}
+   * @memberof DeviceReponse
+   */
+  temperature
+  /**
+   * @type {number}
+   * @memberof DeviceReponse
+   */
+  humidity
+  /**
+   * @type {number}
+   * @memberof DeviceReponse
+   */
+  pressure
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  icon
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  hwVersion
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  fwVersion
+  /**
+   * @type {boolean}
+   * @memberof DeviceReponse
+   */
+  checkUpdates
+  /**
+   * @type {number}
+   * @memberof DeviceReponse
+   */
+  autoUpdate
+  /**
+   * @type {string}
+   * @memberof DeviceReponse
+   */
+  logLevel
+  /**
+   * @type {boolean}
+   * @memberof DeviceReponse
+   */
+  hwSupported
 }
 
-interface DeviceReponse {
-  uuid: string
-  name: string
-  mac: string
-  firstSeen: Date
-  lastSeen: Date
-  localIp?: string
-  ipv4?: string
-  ipv6?: string
-  ownerUuid: string
-  temperature: number
-  humidity: number
-  pressure: number
-  icon: string
-  hwVersion: string
-  fwVersion: string
-  checkUpdates: boolean
-  autoUpdate: boolean
-  logLevel: string
-  hwSupported: boolean
+class TemperatureDeltaHistory {
+  /**
+   * @description
+   * @type {TemperatureDeltaHistoryEntry}
+   * @memberof TemperatureDeltaHistory
+   */
+  quarterTemperatureDelta
+  /**
+   * @description
+   * @type {TemperatureDeltaHistoryEntry}
+   * @memberof TemperatureDeltaHistory
+   */
+  halfHourTemperatureDelta
+  /**
+   * @description
+   * @type {TemperatureDeltaHistoryEntry}
+   * @memberof TemperatureDeltaHistory
+   */
+  oneHourTemperatureDelta
+  /**
+   * @description
+   * @type {TemperatureDeltaHistoryEntry}
+   * @memberof TemperatureDeltaHistory
+   */
+  twoHourTemperatureDelta
+  /**
+   * @description
+   * @type {TemperatureDeltaHistoryEntry}
+   * @memberof TemperatureDeltaHistory
+   */
+  fourHourTemperatureDelta
 }
 
-export interface TemperatureDeltaHistory {
-  quarterTemperatureDelta: TemperatureDeltaHistoryEntry
-  halfHourTemperatureDelta: TemperatureDeltaHistoryEntry
-  oneHourTemperatureDelta: TemperatureDeltaHistoryEntry
-  twoHourTemperatureDelta: TemperatureDeltaHistoryEntry
-  fourHourTemperatureDelta: TemperatureDeltaHistoryEntry
+class TemperatureDeltaHistoryEntry {
+  /**
+   * @description
+   * @type {number}
+   * @memberof TemperatureDeltaHistoryEntry
+   */
+  min
+  /**
+   * @description
+   * @type {number}
+   * @memberof TemperatureDeltaHistoryEntry
+   */
+  max
+  /**
+   * @description
+   * @type {number}
+   * @memberof TemperatureDeltaHistoryEntry
+   */
+  delta
 }
 
-export interface TemperatureDeltaHistoryEntry {
-  min: number
-  max: number
-  delta: number
+module.exports = {
+  default: Thermostat
 }

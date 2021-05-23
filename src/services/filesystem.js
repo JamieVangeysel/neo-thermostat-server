@@ -1,16 +1,22 @@
-import * as fs from 'fs'
-import { IConfig } from './config'
-import { Logger } from './logging/logger'
+const fs = require('fs')
+const Logger = require('./logging/logger').default
 const logger = new Logger()
 
-export class FileSystem {
+class FileSystem {
+  /**
+   * Creates an instance of FileSystem.
+   * @memberof FileSystem
+   */
+  constructor() {}
+
   /**
    * Check if path exists and is accessible, promise will be rejected on error.
-   * @param path The path to verify.
+   * @param {string} path The path to verify.
+   * @returns {Promise<boolean>}
    */
-  public exists(path: string): Promise<boolean> {
+  exists(path) {
     logger.debug(`FileSystem.exists() -- start`)
-    return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
+    return new Promise((resolve, reject) => {
       try {
         fs.access(path, (err) => {
           if (!err) {
@@ -29,14 +35,17 @@ export class FileSystem {
 
   /**
    * Read file contents and returns Buffer
-   * @param path The path to the file.
+   * @param {string} path The path to the file.
+   * @returns {Promise<Buffer>}
    */
-  public readFile(path: string): Promise<Buffer> {
+  readFile(path) {
     logger.debug(`FileSystem.readFile() -- start`)
-    return new Promise<any>((resolve: (value: Buffer) => void, reject: (err: Error) => void) => {
+    return new Promise((resolve, reject) => {
       try {
         fs.readFile(path, (err, data) => {
-          if (err) { reject(err) }
+          if (err) {
+            reject(err)
+          }
           logger.debug(`FileSystem.readFile() -- ok`)
           resolve(data)
         })
@@ -49,15 +58,18 @@ export class FileSystem {
 
   /**
    * Writes text to a file and returns true if the operation is completed.
-   * @param path The path to the file.
-   * @param text The text to write to file
+   * @param {string} path The path to the file.
+   * @param {Buffer} text The text to write to file
+   * @returns {Promise<boolean>}
    */
-  public writeFile(path: string, bytes: Buffer): Promise<boolean> {
+  writeFile(path, bytes) {
     logger.debug(`FileSystem.writeFile() -- start`)
-    return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
+    return new Promise((resolve, reject) => {
       try {
         fs.writeFile(path, bytes, (err) => {
-          if (err) { resolve(false) }
+          if (err) {
+            resolve(false)
+          }
           logger.debug(`FileSystem.writeFile() -- ok`)
           resolve(true)
         })
@@ -70,15 +82,18 @@ export class FileSystem {
 
   /**
    * Appends text to a file and returns true if the operation is completed.
-   * @param path The path to the file.
-   * @param text The text to append to file
+   * @param {string} path The path to the file.
+   * @param {Buffer} text The text to append to file
+   * @returns {Promise<boolean>}
    */
-  public writeAppendFile(path: string, bytes: Buffer): Promise<boolean> {
+  writeAppendFile(path, bytes) {
     logger.debug(`FileSystem.writeAppendFile() -- start`)
-    return new Promise<any>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
+    return new Promise((resolve, reject) => {
       try {
         fs.appendFile(path, bytes, (err) => {
-          if (err) { resolve(false) }
+          if (err) {
+            resolve(false)
+          }
           logger.debug(`FileSystem.writeAppendFile() -- ok`)
           resolve(true)
         })
@@ -91,14 +106,17 @@ export class FileSystem {
 
   /**
    * Deletes the file or folder at a given path
-   * @param path The path to the file or folder.
+   * @param {string} path The path to the file or folder.
+   * @returns {Promise<boolean>}
    */
-  public delete(path: string): Promise<boolean> {
+  delete(path) {
     logger.debug(`FileSystem.delete() -- start`)
-    return new Promise<boolean>((resolve: (value: boolean) => void, reject: (err: Error) => void) => {
+    return new Promise((resolve, reject) => {
       try {
         fs.unlink(path, (err) => {
-          if (err) { resolve(false) }
+          if (err) {
+            resolve(false)
+          }
           logger.debug(`FileSystem.delete() -- ok`)
           resolve(true)
         })
@@ -109,26 +127,52 @@ export class FileSystem {
     })
   }
 
-  public toBuffer(text: string): Buffer {
+  /**
+   * @description
+   * @param {string} text
+   * @return {Buffer}
+   * @memberof FileSystem
+   */
+  toBuffer(text) {
     return Buffer.from(text)
   }
 
-  public toJson(object: any): string {
+  /**
+   * @description
+   * @param {any} object
+   * @return {string}
+   * @memberof FileSystem
+   */
+  toJson(object) {
     const obj = JSON.stringify(object)
     return obj
   }
 
-  public fromJson(text: string): any {
+  /**
+   * @description
+   * @param {string} text
+   * @return {any}
+   * @memberof FileSystem
+   */
+  fromJson(text) {
     const obj = JSON.parse(text)
     return obj
   }
 
-  public checkBuffer(buffer: Buffer): IConfig {
+  /**
+   * @description
+   * @param {Buffer} buffer
+   * @return {IConfig}
+   * @memberof FileSystem
+   */
+  checkBuffer(buffer) {
     if (buffer) {
       logger.debug(`checkBuffer() -- buffer is not null.`)
-      const configText: string = buffer.toString()
+      /** @type {string} */
+      const configText = buffer.toString()
       try {
-        const configObj: IConfig = JSON.parse(configText)
+        /** @type {IConfig} */
+        const configObj = JSON.parse(configText)
         logger.debug(`checkBuffer() -- buffer is JSON.`)
         if (configObj && configObj.version >= 2) {
           logger.debug(`checkBuffer() -- config is instance and version is correct.`)
@@ -142,4 +186,8 @@ export class FileSystem {
 
     return null
   }
+}
+
+module.exports = {
+  default: FileSystem
 }

@@ -1,22 +1,22 @@
-import { Platform } from './platform'
-let platform: Platform
+const Platform = require('./platform').Platform
+let platform
 
 /**
  * @description: this is the entry point of the program, return true if the application started
+ *
+ * @param {boolean} [debug]
+ * @return {Promise<boolean>} Promise resolvs to true if platform has been initialized correctly
  */
-const main = (debug?: boolean): Promise<boolean> => {
-  return new Promise<boolean>((resolve, reject) => {
+function main(debug) {
+  return new Promise((resolve, reject) => {
     try {
-      const platform = new Platform()
-      // created platform
+      platform = new Platform()
       resolve(true)
     } catch (err) {
       reject(err)
     }
   })
 }
-
-export default main
 
 main()
 
@@ -39,3 +39,7 @@ process.on('uncaughtException', err => {
   console.error('process.uncaughtException -- Starting new instance of main.', err)
   // main()
 })
+
+module.exports = {
+  main
+}

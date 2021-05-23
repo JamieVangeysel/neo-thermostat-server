@@ -1,17 +1,32 @@
-import { fetch } from 'cross-fetch'
-import { EventEmitter } from 'events'
-import { Platform } from '../platform'
+const fetch = require('cross-fetch')
+const EventEmitter = require('events')
 
-export class Relais extends EventEmitter {
-  private platform: Platform
+class Relais extends EventEmitter {
+  /**
+   * @description Reference to the platform instance
+   * @private
+   * @type {Platform}
+   * @memberof Relais
+   */
+  platform
 
-  constructor(platform: Platform) {
+  /**
+   * Creates an instance of Relais.
+   * @param {Platform} platform
+   * @memberof Relais
+   */
+  constructor(platform) {
     super()
 
     this.platform = platform
   }
 
-  activate(type: SwitchTypeEnum) {
+  /**
+   * @description activate relais with given type
+   * @param {SwitchTypeEnum} type
+   * @memberof Relais
+   */
+  activate(type) {
     this.platform.logger.debug(`Relais.activate() -- start`, type)
     const onSwitches = this.platform.config.relais.switches.filter(e => e.type === type)
     const offSwitches = this.platform.config.relais.switches.filter(e => e.type !== type)
@@ -30,13 +45,19 @@ export class Relais extends EventEmitter {
     this.platform.logger.debug(`Relais.activate() -- end`)
   }
 
-  private async update() {
+  /**
+   * @description
+   * @private
+   * @memberof Relais
+   */
+  async update() {
     this.platform.logger.debug(`Relais.update() -- start`)
     this.platform.logger.debug(`Relais.update() -- get current state from relaisController`)
     try {
       const relaisResult = await fetch(`${this.platform.config.relais.secure ? 'https' : 'http'}://${this.platform.config.relais.hostname}/state`)
       this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`)
-      const relaisStates: boolean[] = (await relaisResult.json()).status
+      /** @type {boolean[]} */
+      const relaisStates = (await relaisResult.json()).status
       this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates)
 
       for (let i = 0; i < relaisStates.length; i++) {
@@ -50,7 +71,14 @@ export class Relais extends EventEmitter {
     this.platform.logger.debug(`Relais.update() -- end`)
   }
 
-  private async setState(relais: IRelaisSwitch, state: SwitchStateEnum) {
+  /**
+   * @description Change the state of a specific IRelaisSwitch Instance
+   * @private
+   * @param {IRelaisSwitch} relais
+   * @param {SwitchStateEnum} state
+   * @memberof Relais
+   */
+  async setState(relais, state) {
     this.platform.logger.debug(`Relais.setState() -- start`, relais, state)
     // check the current state of pinIndex
     if (relais.active && state === SwitchStateEnum.ON) {
@@ -74,26 +102,85 @@ export class Relais extends EventEmitter {
   }
 }
 
-export interface IRelais {
-  hostname: string
-  secure: boolean
-  switches: IRelaisSwitch[]
+/**
+ *
+ *
+ * @export
+ * @interface IRelais
+ */
+class IRelais {
+  /**
+   * @description
+   * @type {string}
+   * @memberof IRelais
+   */
+  hostname
+
+  /**
+   * @description
+   * @type {boolean}
+   * @memberof IRelais
+   */
+  secure
+
+  /**
+   * @description
+   * @type {IRelaisSwitch[]}
+   * @memberof IRelais
+   */
+  switches
 }
 
-export interface IRelaisSwitch {
-  pinIndex: number
-  active: boolean
-  type: SwitchTypeEnum
+/**
+ *
+ *
+ * @export
+ * @interface IRelaisSwitch
+ */
+class IRelaisSwitch {
+  /**
+   * @description
+   * @type {number}
+   * @memberof IRelaisSwitch
+   */
+  pinIndex
+
+  /**
+   * @description
+   * @type {boolean}
+   * @memberof IRelaisSwitch
+   */
+  active
+
+  /**
+   * @description
+   * @type {SwitchTypeEnum}
+   * @memberof IRelaisSwitch
+   */
+  type
 }
 
-export enum SwitchTypeEnum {
-  HEAT = 'HEAT',
-  COOL = 'COOL',
-  VENT = 'VENT', // experimental => ventilation won't be added until v3
-  NONE = 'NONE' // dummy entry to be able to deactivate all relais switches
+/**
+ * @description
+ * @export
+ */
+const SwitchTypeEnum = {
+  HEAT: 'HEAT',
+  COOL: 'COOL',
+  VENT: 'VENT', // experimental => ventilation won't be added until v3
+  NONE: 'NONE' // dummy entry to be able to deactivate all relais switches
 }
 
-export enum SwitchStateEnum {
-  ON = 'on',
-  OFF = 'off'
+/**
+ * @description
+ * @export
+ */
+const SwitchStateEnum = {
+  ON: 'on',
+  OFF: 'off'
+}
+
+module.exports = {
+  Relais,
+  SwitchTypeEnum
 }
