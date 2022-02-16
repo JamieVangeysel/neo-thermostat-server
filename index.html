@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script type="text/javascript">
+    function reqListener() {
+      const data = JSON.parse(this.responseText)
+
+      const dataMapco2 = data.map(entry => ({
+        x: new Date(entry.date).getTime(),
+        y: entry.co2
+      }))
+      const dataMapTvoc = data.map(entry => ({
+        x: new Date(entry.date).getTime(),
+        y: entry.tvoc
+      }))
+      const dataMapRawH2 = data.map(entry => ({
+        x: new Date(entry.date).getTime(),
+        y: entry.rawH2
+      }))
+      const dataMapRawEthanol = data.map(entry => ({
+        x: new Date(entry.date).getTime(),
+        y: entry.rawEthanol
+      }))
+
+      var options = {
+        chart: {
+          type: 'line'
+        },
+        series: [{
+          name: 'co2',
+          data: dataMapco2
+        }, {
+          name: 'tvoc',
+          data: dataMapTvoc
+        }, {
+          name: 'rawH2',
+          data: dataMapRawH2
+        }, {
+          name: 'rawEthanol',
+          data: dataMapRawEthanol
+        }],
+        xaxis: {
+          type: 'datetime'
+        }
+      }
+
+      var chart = new ApexCharts(document.querySelector("#chart"), options);
+
+      chart.render();
+    }
+
+    var oReq = new XMLHttpRequest()
+    oReq.addEventListener('load', reqListener)
+    oReq.overrideMimeType("application/json");
+    oReq.open('GET', 'http://localhost:8000/test/air/-1', true)
+    oReq.send()
+  </script>
+  <style type="text/css">
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100vh
+    }
+
+    #chart {
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="chart"></div>
+</body>
+
+</html>

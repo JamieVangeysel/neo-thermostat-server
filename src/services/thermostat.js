@@ -130,6 +130,8 @@ class Thermostat {
       /** @type {Date} */
       const lastSeen = data.lastSeen
 
+      // data.temperature -= .2
+
       this.state.currentTemperature = data.temperature
       this.state.currentRelativeHumidity = data.humidity
       this.platform.logger.log('Thermostat.getSensorData() -- HeatIndex', this.HeatIndex)
@@ -278,7 +280,7 @@ class Thermostat {
     this.platform.logger.debug('Thermostat.handleHeatState() -- start')
 
     this.platform.logger.debug('Thermostat.handleHeatState() -- targetHeatingCoolingState is HEAT, check if currently heating')
-    this.platform.logger.debug('ÏThermostat.handleHeatState() -- config ', this.platform.config.relais.switches)
+    this.platform.logger.debug('Thermostat.handleHeatState() -- config ', this.platform.config.relais.switches)
     if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
       this.platform.logger.debug('system state is heating, turn off COOL')
       this.relais.activate(SwitchTypeEnum.NONE)
@@ -401,7 +403,7 @@ class Thermostat {
    * @memberof Thermostat
    */
   get sensorUrl() {
-    return `https://simplintho-neo-dev.azurewebsites.net/devices/${this.platform.config.temperatureSensor}`
+    return `http://napi.jamievangeysel.be/v1/neo/devices/${this.platform.config.temperatureSensor}`
   }
 
   /**

@@ -59,3 +59,4 @@ Thumbs.db
 config.json
 data-log.csv
 temperature-history.json
+airQualityLog.csv

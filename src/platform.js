@@ -2,6 +2,9 @@ const HttpListener = require('./services/http-listener').default
 const Logger = require('./services/logging/logger').default
 const Thermostat = require('./services/thermostat').default
 const ConfigService = require('./services/config').default
+
+const API = require('./services/api')
+
 const {
   IConfig
 } = require('./services/config')
@@ -44,6 +47,12 @@ class Platform {
    */
   thermostat
 
+  /**
+   * @type {API}
+   * @memberof Platform
+   */
+  api
+
   constructor() {
     this.logger.debug(`Platform.constructor() -- start`)
     this.init().then(() => {
@@ -71,6 +80,10 @@ class Platform {
       } catch (err) {
         this.logger.error('Platform.init()', err.message)
       }
+      this.api = new API(this)
+      this.logger.debug(`Platform.init() -- initialized new API()`)
+      await this.api.listen()
+      this.logger.debug(`Platform.init() -- API is now listening.`)
       this.thermostat = new Thermostat(this)
       this.logger.debug(`Platform.init() -- initialized new Thermostat()`)
       this.http.configure(config.hostname, config.port, this.thermostat)
