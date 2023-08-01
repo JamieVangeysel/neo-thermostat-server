@@ -27,7 +27,7 @@ module.exports = class API {
     }
 
     this.server = require('fastify')(fastifyConfig)
-    this.server.register(require('fastify-cors'), {
+    this.server.register(require('@fastify/cors'), {
       credentials: true,
       methods: [
         'GET',
