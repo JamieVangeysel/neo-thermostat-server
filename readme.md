@@ -40,7 +40,11 @@ Q = ΔT x A x U
 - A = Surface area of the structure in square meters
 - U = U-value of the structure
 - 
-  Stel, je hebt een woonkamer van 6 meter lang, 5 meter breed en 2,70 meter hoog. Dit geeft een kamerinhoud van 81 m³. Stel dat de gewenste binnentemperatuur 20°C is en de buitentemperatuur 0°C, dan is het temperatuurverschil 20°C. Je hebt een muur met een oppervlakte van 20 m² en een U-waarde van 0,35 W/m²K. Het warmteverlies door de muur is dan: 20°C * 20 m² * 0,35 W/m²K = 140 Watt.
+  Stel, je hebt een woonkamer van 6 meter lang, 5 meter breed en 2,70 meter hoog.  
+- Dit geeft een kamerinhoud van 81 m³.  
+- Stel dat de gewenste binnentemperatuur 20°C is en de buitentemperatuur 0°C, dan is het temperatuurverschil 20°C.  
+- Je hebt een muur met een oppervlakte van 20 m² en een U-waarde van 0,35 W/m²K.  
+- Het warmteverlies door de muur is dan: 20°C * 20 m² * 0,35 W/m²K = 140 Watt.
 
 ## Kamers warmtebehoefte draft:
 
