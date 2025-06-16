@@ -13,7 +13,7 @@ exports.get = async (req, reply) => {
     if (req.params.id) {
       // check if parameter id is a valid number
       const id = parseInt(req.params.id, 10) || null
-      if (typeof id === 'number' && id !== null) {
+      if (typeof id === 'number') {
         return {
           id,
           isNull: id === null
