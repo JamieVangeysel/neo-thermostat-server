@@ -1,57 +1,13 @@
-const HttpListener = require('./services/http-listener').default
-const Logger = require('./services/logging/logger').default
-const Thermostat = require('./services/thermostat').default
-const ConfigService = require('./services/config').default
 
-const API = require('./services/api')
 
-const {
-  IConfig
-} = require('./services/config')
-const DatabaseService = require('./services/database').default
-
-class Platform {
-  /**
-   * @type {Logger}
-   * @memberof Platform
-   */
-  logger = new Logger()
-
-  /**
-   * @type {IConfig}
-   * @memberof Platform
-   */
-  config
-
-  /**
-   * @type {DatabaseService}
-   * @memberof Platform
-   */
-  database
-
-  /**
-   * @type {ConfigService}
-   * @memberof Platform
-   */
-  configService = new ConfigService(this)
-
-  /**
-   * @type {HttpListener}
-   * @memberof Platform
-   */
-  http = new HttpListener(this)
-
-  /**
-   * @type {Thermostat}
-   * @memberof Platform
-   */
-  thermostat
-
-  /**
-   * @type {API}
-   * @memberof Platform
-   */
-  api
+export class Platform {
+  readonly logger: Logger = new Logger()
+  readonly config: IConfig
+  public database: DatabaseService
+  public configService: ConfigService = new ConfigService(this)
+  private http: HttpListener = new HttpListener(this)
+  private thermostat: Thermostat
+  private api: API
 
   constructor() {
     this.logger.debug(`Platform.constructor() -- start`)

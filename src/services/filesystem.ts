@@ -1,22 +1,12 @@
-const fs = require('fs')
-const Logger = require('./logging/logger').default
-const logger = new Logger()
+import * as fs from 'node:fs'
+import { Logger } from './logging/logger'
 
-class FileSystem {
-  /**
-   * Creates an instance of FileSystem.
-   * @memberof FileSystem
-   */
-  constructor() {}
+const logger: Logger = new Logger()
 
-  /**
-   * Check if path exists and is accessible, promise will be rejected on error.
-   * @param {string} path The path to verify.
-   * @returns {Promise<boolean>}
-   */
-  exists(path) {
+export class FileSystem {
+  exists(path: string): Promise<boolean> {
     logger.debug(`FileSystem.exists() -- start`)
-    return new Promise((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject) => {
       try {
         fs.access(path, (err) => {
           if (!err) {
@@ -35,12 +25,10 @@ class FileSystem {
 
   /**
    * Read file contents and returns Buffer
-   * @param {string} path The path to the file.
-   * @returns {Promise<Buffer>}
    */
-  readFile(path) {
+  readFile(path: string): Promise<Buffer> {
     logger.debug(`FileSystem.readFile() -- start`)
-    return new Promise((resolve, reject) => {
+    return new Promise<Buffer>((resolve, reject) => {
       try {
         fs.readFile(path, (err, data) => {
           if (err) {
@@ -186,8 +174,4 @@ class FileSystem {
 
     return null
   }
-}
-
-module.exports = {
-  default: FileSystem
 }

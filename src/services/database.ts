@@ -1,41 +1,18 @@
-const MongoClient = require('mongodb')
+import { Platform } from '../platform'
+import { IConfig } from './config'
+import { MongoClient } from 'mongodb'
 
-class DatabaseService {
-  /**
-   * @description
-   * @private
-   * @type {Platform}
-   * @memberof DatabaseService
-   */
-  platform
-  /**
-   * @description
-   * @private
-   * @type {IConfig}
-   * @memberof DatabaseService
-   */
-  config
-  /**
-   * @description
-   * @private
-   * @type {string}
-   * @memberof DatabaseService
-   */
-  url
+export class DatabaseService {
+  private readonly platform: Platform
+  private readonly config: IConfig
+  private readonly url: string
 
   /**
    * @description This boolean will be set to true if config is ok and we can connect to database
-   * @private
-   * @memberof DatabaseService
    */
-  enabled = false
+  private enabled: boolean = false
 
-  /**
-   * Creates an instance of DatabaseService.
-   * @param {Platform} platform
-   * @memberof DatabaseService
-   */
-  constructor(platform) {
+  constructor(platform: Platform) {
     platform.logger.debug(`DatabaseService.constructor() -- start`)
     this.platform = platform
     this.config = platform.config
@@ -45,13 +22,13 @@ class DatabaseService {
 
   async init() {
     this.platform.logger.debug(`DatabaseService.init() -- start`)
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       if (this.url.length === 0) {
         return reject(new Error('no Database config was provided'))
       }
       MongoClient.connect(this.url, {
         useUnifiedTopology: true,
-        useNewUrlParser: true,
+        useNewUrlParser: true
       }, (connectErr, db) => {
         if (connectErr) {
           this.platform.logger.error(`DatabaseService.init() -- MongoClient.connect error: `, connectErr)
@@ -66,18 +43,12 @@ class DatabaseService {
     })
   }
 
-  /**
-   * @description
-   * @param {string} collection
-   * @return {Promise<boolean>}
-   * @memberof DatabaseService
-   */
-  createCollection(collection) {
-    return new Promise((resolve, reject) => {
+  createCollection(collection: string): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
       if (this.enabled) {
         MongoClient.connect(this.url, {
           useUnifiedTopology: true,
-          useNewUrlParser: true,
+          useNewUrlParser: true
         }, (connectErr, db) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.createCollection() -- MongoClient.connect error: `, connectErr)
@@ -103,19 +74,12 @@ class DatabaseService {
     })
   }
 
-  /**
-   * @description
-   * @param {string} collection
-   * @param {any} document
-   * @return {Promise<boolean>}
-   * @memberof DatabaseService
-   */
-  insertIntoCollection(collection, document) {
-    return new Promise((resolve, reject) => {
+  insertIntoCollection(collection: string, document: any): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
       if (this.enabled) {
         MongoClient.connect(this.url, {
           useUnifiedTopology: true,
-          useNewUrlParser: true,
+          useNewUrlParser: true
         }, (connectErr, db) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.insertIntoCollection() -- MongoClient.connect error: `, connectErr)
@@ -141,19 +105,12 @@ class DatabaseService {
     })
   }
 
-  /**
-   * @description
-   * @param {string} collection
-   * @param {any} query
-   * @return {Promise<any>}
-   * @memberof DatabaseService
-   */
-  findInCollection(collection, query) {
-    return new Promise((resolve, reject) => {
+  findInCollection(collection: string, query: any): Promise<any> {
+    return new Promise<any>((resolve, reject) => {
       if (this.enabled) {
         MongoClient.connect(this.url, {
           useUnifiedTopology: true,
-          useNewUrlParser: true,
+          useNewUrlParser: true
         }, (connectErr, db) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.findInCollection() -- MongoClient.connect error: `, connectErr)
@@ -177,20 +134,13 @@ class DatabaseService {
       }
     })
   }
-  /**
-   *
-   *
-   * @param {string} collection
-   * @param {any} query
-   * @return {Promise<any[]>}
-   * @memberof DatabaseService
-   */
-  queryInCollection(collection, query) {
-    return new Promise((resolve, reject) => {
+
+  queryInCollection(collection: string, query: any): Promise<any[]> {
+    return new Promise<any[]>((resolve, reject) => {
       if (this.enabled) {
         MongoClient.connect(this.url, {
           useUnifiedTopology: true,
-          useNewUrlParser: true,
+          useNewUrlParser: true
         }, (connectErr, db) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.queryInCollection() -- MongoClient.connect error: `, connectErr)
@@ -215,19 +165,12 @@ class DatabaseService {
     })
   }
 
-  /**
-   * @description
-   * @param {string} collection
-   * @param {any} query
-   * @return {Promise<boolean>}
-   * @memberof DatabaseService
-   */
-  deleteFromCollection(collection, query) {
-    return new Promise((resolve, reject) => {
+  deleteFromCollection(collection: string, query: any): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
       if (this.enabled) {
         MongoClient.connect(this.url, {
           useUnifiedTopology: true,
-          useNewUrlParser: true,
+          useNewUrlParser: true
         }, (connectErr, db) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.deleteFromCollection() -- MongoClient.connect error: `, connectErr)
@@ -252,20 +195,12 @@ class DatabaseService {
     })
   }
 
-  /**
-   * @description 
-   * @param {string} collection
-   * @param {any} query
-   * @param {any} values
-   * @return {Promise<boolean>}
-   * @memberof DatabaseService
-   */
-  updateInCollection(collection, query, values) {
-    return new Promise((resolve, reject) => {
+  updateInCollection(collection: string, query: any, values: any): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
       if (this.enabled) {
         MongoClient.connect(this.url, {
           useUnifiedTopology: true,
-          useNewUrlParser: true,
+          useNewUrlParser: true
         }, (connectErr, db) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.updateInCollection() -- MongoClient.connect error: `, connectErr)
@@ -292,17 +227,12 @@ class DatabaseService {
     })
   }
 
-  /**
-   * @param {string} collection
-   * @return {Promise<boolean>}
-   * @memberof DatabaseService
-   */
-  dropCollection(collection) {
-    return new Promise((resolve, reject) => {
+  dropCollection(collection: string): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
       if (this.enabled) {
         MongoClient.connect(this.url, {
           useUnifiedTopology: true,
-          useNewUrlParser: true,
+          useNewUrlParser: true
         }, (connectErr, db) => {
           if (connectErr) {
             this.platform.logger.error(`DatabaseService.dropCollection() -- MongoClient.connect error: `, connectErr)
@@ -327,32 +257,14 @@ class DatabaseService {
     })
   }
 
-  /**
-   *
-   * @readonly
-   * @private
-   * @type {string}
-   * @memberof DatabaseService
-   */
-  get dbName() {
+  private get dbName(): string {
     return this.config.mongoDB.db
   }
 
-  /**
-   *
-   * @readonly
-   * @private
-   * @type {string}
-   * @memberof DatabaseService
-   */
-  get dbUrl() {
+  private get dbUrl(): string {
     return this.config.mongoDB.url
       .replace('{db}', this.config.mongoDB.db)
       .replace('{username}', this.config.mongoDB.username)
       .replace('{password}', this.config.mongoDB.password)
   }
-}
-
-module.exports = {
-  default: DatabaseService
 }

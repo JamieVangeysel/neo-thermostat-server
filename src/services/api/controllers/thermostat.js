@@ -1,7 +1,6 @@
 const {
   Platform
 } = require('../../../platform')
-const boom = require('boom')
 
 /**
  * Return array of thermostats or return detail if parameter id is supplied
@@ -32,7 +31,7 @@ exports.get = async (req, reply) => {
 
     return platform.thermostat.temperatureDeltas
   } catch (err) {
-    throw boom.boomify(err)
+    throw err
   }
 }
 
@@ -63,7 +62,7 @@ exports.getCurrentTemperature = async (req, reply) => {
       .status(204)
       .send()
   } catch (err) {
-    throw boom.boomify(err)
+    throw err
   }
 }
 
@@ -94,7 +93,7 @@ exports.getTargetTemperature = async (req, reply) => {
       .status(204)
       .send()
   } catch (err) {
-    throw boom.boomify(err)
+    throw err
   }
 }
 
@@ -162,7 +161,7 @@ exports.putTargetTemperature = async (req, reply) => {
       .status(204)
       .send()
   } catch (err) {
-    throw boom.boomify(err)
+    throw err
   }
 }
 

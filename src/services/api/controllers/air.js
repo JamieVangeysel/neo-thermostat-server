@@ -1,5 +1,4 @@
 // #External dependencies
-const boom = require('boom')
 const Platform = require('../../../platform').Platform
 const co2Sensor = require('../models/coSensor')
 
@@ -24,7 +23,7 @@ exports.get = async (req, reply) => {
         tvoc: parseInt(values[2]),
         rawH2: parseInt(values[3]),
         rawEthanol: parseInt(values[4]),
-        rating: co2Sensor.getRating(parseInt(values[1])).name,
+        rating: co2Sensor.getRating(parseInt(values[1])).name
       }
     })
 
@@ -68,14 +67,14 @@ exports.get = async (req, reply) => {
         const avgRawH2 = (sumRawH2 / points.length) || 0
         const sumRawEthanol = points.map(e => e.rawEthanol).reduce((a, b) => a + b, 0)
         const avgRawEthanol = (sumRawEthanol / points.length) || 0
-  
+
         result.push({
           date: points[0].timeFrame,
           co2: Math.round(avgCO2),
           tvoc: Math.round(avgTvoc),
           rawH2: Math.round(avgRawH2),
           rawEthanol: Math.round(avgRawEthanol),
-          rating: co2Sensor.getRating(avgCO2).name,
+          rating: co2Sensor.getRating(avgCO2).name
         })
       }
     }
@@ -83,7 +82,7 @@ exports.get = async (req, reply) => {
   } catch (err) {
     platform.logger.debug(`airController.get() -- 500:Internal Server Error`)
     platform.logger.error(`airController.get() -- catch`, err)
-    throw boom.boomify(err)
+    throw err
   }
 }
 
@@ -142,6 +141,6 @@ exports.post = async (req, reply) => {
   } catch (err) {
     platform.logger.debug(`airController.post() -- 500:Internal Server Error`)
     platform.logger.error(`airController.post() -- catch`, err)
-    throw boom.boomify(err)
+    throw err
   }
 }

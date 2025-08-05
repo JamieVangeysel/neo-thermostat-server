@@ -1,23 +1,15 @@
-const { EventEmitter } = require('events')
-const FileSystem = require('./filesystem').default
+import { EventEmitter } from 'events'
+import { Platform } from '../platform'
+import { Relais, SwitchTypeEnum } from './relais'
+import { FileSystem } from './filesystem'
+import { HeatingCoolingStateEnum, TemperatureDisplayUnits, ThermostatState } from './thermostat'
 
 const filesystem = new FileSystem()
 
-class ConfigService extends EventEmitter {
-  /**
-   * @description Platform instance
-   * @private
-   * @type {Platform}
-   * @memberof ConfigService
-   */
-  platform
+export class ConfigService extends EventEmitter {
+  private platform: Platform
 
-  /**
-   * Creates an instance of ConfigService.
-   * @param {Platform} platform
-   * @memberof ConfigService
-   */
-  constructor(platform) {
+  constructor(platform: Platform) {
     super()
 
     this.platform = platform
@@ -131,79 +123,21 @@ class ConfigService extends EventEmitter {
   }
 }
 
-/**
- * @description
- * @class IConfig
- */
-class IConfig {
-  /**
-   * @type {number}
-   * @memberof IConfig
-   */
-  version
-  /**
-   * @type {string}
-   * @memberof IConfig
-   */
-  hostname
-  /**
-   * @type {number}
-   * @memberof IConfig
-   */
-  port
-  /**
-   * @type {IRelais}
-   * @memberof IConfig
-   */
-  relais
-  /**
-   * @type {string}
-   * @memberof IConfig
-   */
-  weatherMapApiKey
-  /**
-   * @type {string}
-   * @memberof IConfig
-   */
-  temperatureSensor
-  /**
-   * @type {ImongoDBConfig}
-   * @memberof IConfig
-   */
-  mongoDB
-  /**
-   * @type {ThermostatState}
-   * @memberof IConfig
-   */
-  thermostatState
+
+export interface IConfig {
+  version: number
+  hostname: string
+  port: number
+  relais: Relais
+  weatherMapApiKey: string
+  temperatureSensor: string
+  mongoDB: IMongoDBConfig
+  thermostatState: ThermostatState
 }
 
-/**
- * @class ImongoDBConfig
- */
-class ImongoDBConfig {
-  /**
-   * @type {string}
-   * @memberof ImongoDBConfig
-   */
-  url
-  /**
-   * @type {string}
-   * @memberof ImongoDBConfig
-   */
-  db
-  /**
-   * @type {string}
-   * @memberof ImongoDBConfig
-   */
-  username
-  /**
-   * @type {string}
-   * @memberof ImongoDBConfig
-   */
-  password
-}
-
-module.exports = {
-  default: ConfigService
+interface IMongoDBConfig {
+  url: string
+  db: string
+  username: string
+  password: string
 }

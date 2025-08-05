@@ -1,21 +1,10 @@
-const fetch = require('cross-fetch')
-const EventEmitter = require('events')
+import { Platform } from '../platform'
+import { EventEmitter } from 'events'
 
-class Relais extends EventEmitter {
-  /**
-   * @description Reference to the platform instance
-   * @private
-   * @type {Platform}
-   * @memberof Relais
-   */
-  platform
+export class Relais extends EventEmitter {
+  platform: Platform
 
-  /**
-   * Creates an instance of Relais.
-   * @param {Platform} platform
-   * @memberof Relais
-   */
-  constructor(platform) {
+  constructor(platform: Platform) {
     super()
 
     this.platform = platform
@@ -23,10 +12,8 @@ class Relais extends EventEmitter {
 
   /**
    * @description activate relais with given type
-   * @param {SwitchTypeEnum} type
-   * @memberof Relais
    */
-  activate(type) {
+  activate(type: SwitchTypeEnum) {
     this.platform.logger.debug(`Relais.activate() -- start`, type)
     const onSwitches = this.platform.config.relais.switches.filter(e => e.type === type)
     const offSwitches = this.platform.config.relais.switches.filter(e => e.type !== type)
@@ -73,12 +60,8 @@ class Relais extends EventEmitter {
 
   /**
    * @description Change the state of a specific IRelaisSwitch Instance
-   * @private
-   * @param {IRelaisSwitch} relais
-   * @param {SwitchStateEnum} state
-   * @memberof Relais
    */
-  async setState(relais, state) {
+  private async setState(relais: IRelaisSwitch, state: SwitchStateEnum) {
     this.platform.logger.debug(`Relais.setState() -- start`, relais, state)
     // check the current state of pinIndex
     if (relais.active && state === SwitchStateEnum.ON) {
@@ -102,85 +85,26 @@ class Relais extends EventEmitter {
   }
 }
 
-/**
- *
- *
- * @export
- * @interface IRelais
- */
-class IRelais {
-  /**
-   * @description
-   * @type {string}
-   * @memberof IRelais
-   */
-  hostname
-
-  /**
-   * @description
-   * @type {boolean}
-   * @memberof IRelais
-   */
-  secure
-
-  /**
-   * @description
-   * @type {IRelaisSwitch[]}
-   * @memberof IRelais
-   */
-  switches
+export interface IRelais {
+  hostname: string
+  secure: boolean
+  switches: IRelaisSwitch[]
 }
 
-/**
- *
- *
- * @export
- * @interface IRelaisSwitch
- */
-class IRelaisSwitch {
-  /**
-   * @description
-   * @type {number}
-   * @memberof IRelaisSwitch
-   */
-  pinIndex
-
-  /**
-   * @description
-   * @type {boolean}
-   * @memberof IRelaisSwitch
-   */
-  active
-
-  /**
-   * @description
-   * @type {SwitchTypeEnum}
-   * @memberof IRelaisSwitch
-   */
-  type
+export interface IRelaisSwitch {
+  pinIndex: number
+  active: boolean
+  type: SwitchTypeEnum
 }
 
-/**
- * @description
- * @export
- */
-const SwitchTypeEnum = {
-  HEAT: 'HEAT',
-  COOL: 'COOL',
-  VENT: 'VENT', // experimental => ventilation won't be added until v3
-  NONE: 'NONE' // dummy entry to be able to deactivate all relais switches
+export enum SwitchTypeEnum {
+  HEAT = 'HEAT',
+  COOL = 'COOL',
+  VENT = 'VENT', // experimental => ventilation won't be added until v3
+  NONE = 'NONE' // dummy entry to be able to deactivate all relais switches
 }
 
-/**
- * @description
- * @export
- */
-const SwitchStateEnum = {
-  ON: 'on',
-  OFF: 'off'
-}
-
-module.exports = {
-  Relais,
-  SwitchTypeEnum
+export enum SwitchStateEnum {
+  ON = 'on',
+  OFF = 'off'
 }

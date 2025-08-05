@@ -1,4 +1,6 @@
-const http = require('http')
+import * as http from 'node:http'
+import { Platform } from '../platform'
+import { Thermostat } from './thermostat'
 
 /** @type {*} */
 const okResponse = {
@@ -8,7 +10,7 @@ const okResponse = {
 /**
  * @description
  * @param {any} value
- * @return {any} 
+ * @return {any}
  */
 const valueResponse = (value) => {
   return {
@@ -17,35 +19,14 @@ const valueResponse = (value) => {
 }
 
 class HttpListener {
-  /**
-   * @private
-   * @type {Platform}
-   * @memberof HttpListener
-   */
-  platform
-  /**
-   * @private
-   * @type {Thermostat}
-   * @memberof HttpListener
-   */
-  thermostat
-  /**
-   * Creates an instance of HttpListener.
-   * @param {Platform} platform
-   * @memberof HttpListener
-   */
-  constructor(platform) {
+  private readonly platform: Platform
+  private thermostat: Thermostat
+
+  constructor(platform: Platform) {
     this.platform = platform
   }
 
-/**
- * @description
- * @param {string} hostname
- * @param {number} port
- * @param {Thermostat} thermostat
- * @memberof HttpListener
- */
-configure(hostname, port, thermostat) {
+  configure(hostname: string, port: number, thermostat: Thermostat) {
     this.platform.logger.debug(`HttpListener.configure() -- start`)
     this.thermostat = thermostat
 
