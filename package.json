@@ -4,7 +4,7 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "build": "esbuild ./src/index.ts --bundle --platform=node --minify --packages=external --external:'./config' --outfile=index.min.js"
+    "build": "esbuild ./src/index.ts --bundle --platform=node --minify --packages=external --outfile=index.min.js"
   },
   "repository": {
     "type": "git",

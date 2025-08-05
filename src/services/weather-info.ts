@@ -11,7 +11,7 @@ export class WeatherInfoService extends EventEmitter {
     this.platform.logger.debug(`WeatherInfoService() -- start`)
     if (platform.config.weatherMapApiKey && platform.config.weatherMapApiKey.trim().length > 0) {
       this.platform.logger.debug(`WeatherInfoService() -- has weatherMapApiKey, start interval`)
-      this.startInterval()
+      this.startInterval().then()
     } else {
       this.platform.logger.warn(`WeatherInfoService() -- no weatherMapApiKey configured, skip `)
     }

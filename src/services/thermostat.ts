@@ -5,7 +5,7 @@ import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info'
 
 export class Thermostat {
   private readonly platform: Platform
-  private readonly fs = new FileSystem()
+  private readonly fs: FileSystem = new FileSystem()
   private readonly relais: Relais // woonkamer: 6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a
   private weatherInfo: WeatherInfoService
   private retries: number = 0
@@ -68,15 +68,14 @@ export class Thermostat {
   async getSensorData() {
     try {
       const result = await fetch(this.sensorUrl)
-      /** @type {DeviceReponse} */
-      const data = (await result.json())
-      /** @type {Date} */
-      const lastSeen = data.lastSeen
+      const response: { data: { temperature: number, humidity: number, date: Date }[] } = (await result.json())
 
+      const data = response.data
+      const lastSeen: Date = data[0].date
       // data.temperature -= .2
 
-      this.state.currentTemperature = data.temperature
-      this.state.currentRelativeHumidity = data.humidity
+      this.state.currentTemperature = data[0].temperature
+      this.state.currentRelativeHumidity = data[0].humidity
       this.platform.logger.log('Thermostat.getSensorData() -- HeatIndex', this.HeatIndex)
 
       this.platform.logger.info(`Thermostat.getSensorData() -- data is from ${lastSeen}.`)
@@ -91,7 +90,7 @@ export class Thermostat {
         if (lastHistoryEntry.date !== lastSeen) {
           this.temperatureHistory.push({
             date: new Date(`${lastSeen}Z`),
-            temperature: data.temperature
+            temperature: data[0].temperature
           })
           this.writeTemperatureHistoryAsync()
           this.platform.logger.info('Thermostat.getSensorData() -- saving temperature into temperatureHistory.')
@@ -101,7 +100,7 @@ export class Thermostat {
       } else {
         this.temperatureHistory.push({
           date: new Date(`${lastSeen}Z`),
-          temperature: data.temperature
+          temperature: data[0].temperature
         })
         this.writeTemperatureHistoryAsync()
         this.platform.logger.info('Thermostat.getSensorData() -- saving temperature into temperatureHistory.')
@@ -213,13 +212,7 @@ export class Thermostat {
     }
   }
 
-  /**
-   * @description
-   * @private
-   * @param {number} currentTemp
-   * @memberof Thermostat
-   */
-  async handleHeatState(currentTemp) {
+  private async handleHeatState(currentTemp: number) {
     this.platform.logger.debug('Thermostat.handleHeatState() -- start')
 
     this.platform.logger.debug('Thermostat.handleHeatState() -- targetHeatingCoolingState is HEAT, check if currently heating')
@@ -288,15 +281,7 @@ export class Thermostat {
     this.platform.logger.debug('Thermostat.handleHeatState() -- end')
   }
 
-  /**
-   * @description
-   * @private
-   * @param {number} temperature
-   * @param {number} relativeHumidity
-   * @return {*}
-   * @memberof Thermostat
-   */
-  calculateHeatIndex(temperature, relativeHumidity) {
+  private calculateHeatIndex(temperature: number, relativeHumidity: number): number {
     const T = (temperature * 1.8) + 32
     const RH = relativeHumidity
     let ADJUSTMENT = 0
@@ -316,37 +301,18 @@ export class Thermostat {
     return ((HI + ADJUSTMENT - 32) / 1.8)
   }
 
-  /**
-   * @description
-   * @private
-   * @param {number} temperature
-   * @param {number} velocity
-   * @return {*}
-   * @memberof Thermostat
-   */
-  calculateWindChillFactor(temperature, velocity) {
-    const T = temperature
-    const V = velocity * 3.6
+  private calculateWindChillFactor(temperature: number, velocity: number) {
+    const T: number = temperature
+    const V: number = velocity * 3.6
     return 13.12 + (0.6215 * T) - 11.37 * Math.pow(V, 0.16) + (0.3965 * T) * Math.pow(V, 0.16)
   }
 
-  /**
-   * @description
-   * @private
-   * @memberof Thermostat
-   */
-  async writeTemperatureHistoryAsync() {
+  private async writeTemperatureHistoryAsync(): Promise<void> {
     await new FileSystem().writeFile('temperature-history.json', Buffer.from(JSON.stringify(this.temperatureHistory, null, 2)))
   }
 
-  /**
-   * @description
-   * @readonly
-   * @private
-   * @memberof Thermostat
-   */
-  get sensorUrl() {
-    return `http://napi.jamievangeysel.be/v1/neo/devices/${this.platform.config.temperatureSensor}`
+  private get sensorUrl() {
+    return `https://api.jamievangeysel.be/v1/neo/devices/${this.platform.config.temperatureSensor}/data`
   }
 
   /**
@@ -358,7 +324,7 @@ export class Thermostat {
    * @type {TemperatureThresholds}
    * @memberof Thermostat
    */
-  get thresholds() {
+  private get thresholds() {
     // 5.2.3.3.2
 
     // We have forecast data, we will add this data to out calculation to ensure nicer living conditions
@@ -386,7 +352,7 @@ export class Thermostat {
     const Ta = this.CurrentTemperature // air temperature measured with dry bulb
     const currentTemp = this.CurrentTemperature // air temperature measured with dry bulb
     if (this.currentForecast) {
-      const Tr = this.CurrentTemperature // mean diant temperature
+      const Tr = this.CurrentTemperature // median temperature
 
       const v = 50.49 - (4.4047 * Ta) + (0.096425 * Math.pow(Ta, 2))
       this.platform.logger.debug(`Thermostat.thresholds -- Desired fan speed: ${v}m/s.`)

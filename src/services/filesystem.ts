@@ -1,5 +1,6 @@
 import * as fs from 'node:fs'
 import { Logger } from './logging/logger'
+import { IConfig } from './config'
 
 const logger: Logger = new Logger()
 
@@ -46,13 +47,10 @@ export class FileSystem {
 
   /**
    * Writes text to a file and returns true if the operation is completed.
-   * @param {string} path The path to the file.
-   * @param {Buffer} text The text to write to file
-   * @returns {Promise<boolean>}
    */
-  writeFile(path, bytes) {
+  writeFile(path: string, bytes: Buffer): Promise<boolean> {
     logger.debug(`FileSystem.writeFile() -- start`)
-    return new Promise((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject) => {
       try {
         fs.writeFile(path, bytes, (err) => {
           if (err) {
@@ -70,13 +68,10 @@ export class FileSystem {
 
   /**
    * Appends text to a file and returns true if the operation is completed.
-   * @param {string} path The path to the file.
-   * @param {Buffer} text The text to append to file
-   * @returns {Promise<boolean>}
    */
-  writeAppendFile(path, bytes) {
+  writeAppendFile(path: string, bytes: Buffer): Promise<boolean> {
     logger.debug(`FileSystem.writeAppendFile() -- start`)
-    return new Promise((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject) => {
       try {
         fs.appendFile(path, bytes, (err) => {
           if (err) {
@@ -94,10 +89,8 @@ export class FileSystem {
 
   /**
    * Deletes the file or folder at a given path
-   * @param {string} path The path to the file or folder.
-   * @returns {Promise<boolean>}
    */
-  delete(path) {
+  delete(path: string): Promise<boolean> {
     logger.debug(`FileSystem.delete() -- start`)
     return new Promise((resolve, reject) => {
       try {
@@ -115,25 +108,12 @@ export class FileSystem {
     })
   }
 
-  /**
-   * @description
-   * @param {string} text
-   * @return {Buffer}
-   * @memberof FileSystem
-   */
-  toBuffer(text) {
+  toBuffer(text: string): Buffer {
     return Buffer.from(text)
   }
 
-  /**
-   * @description
-   * @param {any} object
-   * @return {string}
-   * @memberof FileSystem
-   */
-  toJson(object) {
-    const obj = JSON.stringify(object)
-    return obj
+  toJson(object: any): string {
+    return JSON.stringify(object)
   }
 
   /**
@@ -142,22 +122,15 @@ export class FileSystem {
    * @return {any}
    * @memberof FileSystem
    */
-  fromJson(text) {
-    const obj = JSON.parse(text)
-    return obj
+  fromJson<T>(text: string): T {
+    return JSON.parse(text) as T
   }
 
-  /**
-   * @description
-   * @param {Buffer} buffer
-   * @return {IConfig}
-   * @memberof FileSystem
-   */
-  checkBuffer(buffer) {
+  checkBuffer(buffer: Buffer): IConfig {
     if (buffer) {
       logger.debug(`checkBuffer() -- buffer is not null.`)
       /** @type {string} */
-      const configText = buffer.toString()
+      const configText: string = buffer.toString()
       try {
         /** @type {IConfig} */
         const configObj = JSON.parse(configText)

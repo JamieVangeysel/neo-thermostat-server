@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 import { Platform } from '../platform'
-import { Relais, SwitchTypeEnum } from './relais'
+import { IRelais, SwitchTypeEnum } from './relais'
 import { FileSystem } from './filesystem'
 import { HeatingCoolingStateEnum, TemperatureDisplayUnits, ThermostatState } from './thermostat'
 
@@ -15,16 +15,10 @@ export class ConfigService extends EventEmitter {
     this.platform = platform
   }
 
-  /**
-   * @description
-   * @param {IConfig} config
-   * @return {*} 
-   * @memberof ConfigService
-   */
-  async save(config) {
+  async save(config: IConfig): Promise<boolean> {
     this.platform.logger.debug(`ConfigService.save() -- start`)
 
-    const writeOk = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(config, null, 2)))
+    const writeOk: boolean = await filesystem.writeFile('./config.json', Buffer.from(JSON.stringify(config, null, 2)))
     if (writeOk) {
       this.platform.logger.log(`ConfigService.save() -- write config to './config.json' ok.`)
       this.emit('saved', config)
@@ -67,18 +61,14 @@ export class ConfigService extends EventEmitter {
     this.platform.logger.debug(`ConfigService.initialize() -- end`)
   }
 
-  /**
-   * @description
-   * @private
-   * @memberof ConfigService
-   */
-  async createDefaultConfig() {
+  private async createDefaultConfig(): Promise<void> {
     this.platform.logger.log(`ConfigService.createDefaultConfig() -- start`)
     /** @type {IConfig} */
     const defaultConfig = {
       version: 2,
       hostname: 'localhost',
       port: 8080,
+      instance: 'default',
       weatherMapApiKey: '',
       temperatureSensor: '',
       mongoDB: {
@@ -123,12 +113,12 @@ export class ConfigService extends EventEmitter {
   }
 }
 
-
 export interface IConfig {
   version: number
   hostname: string
+  instance: string
   port: number
-  relais: Relais
+  relais: IRelais
   weatherMapApiKey: string
   temperatureSensor: string
   mongoDB: IMongoDBConfig

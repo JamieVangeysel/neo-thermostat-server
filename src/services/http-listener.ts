@@ -2,23 +2,17 @@ import * as http from 'node:http'
 import { Platform } from '../platform'
 import { Thermostat } from './thermostat'
 
-/** @type {*} */
-const okResponse = {
+const okResponse: any = {
   success: true
 }
 
-/**
- * @description
- * @param {any} value
- * @return {any}
- */
-const valueResponse = (value) => {
+const valueResponse = (value: any): any => {
   return {
     value
   }
 }
 
-class HttpListener {
+export class HttpListener {
   private readonly platform: Platform
   private thermostat: Thermostat
 
@@ -30,8 +24,10 @@ class HttpListener {
     this.platform.logger.debug(`HttpListener.configure() -- start`)
     this.thermostat = thermostat
 
-    const server = http.createServer((req, res) => {
+    const server = http.createServer((req: any, res: any): void => {
       let body = ''
+
+      req.url = req.url.replace('/' + this.platform.config.instance, '')
 
       switch (`${req.url}|${req.method}`) {
         case '/|GET':
@@ -62,8 +58,8 @@ class HttpListener {
           this.platform.logger.debug(`HttpListener.post() -- received request POST '/target-temperature', setting target temperature.`)
 
           body = ''
-          req.on('data', chunk => {
-            body += chunk
+          req.on('data', (chunk: any) => {
+            body += chunk.toString()
           })
 
           req.on('end', () => {
@@ -106,8 +102,8 @@ class HttpListener {
           this.platform.logger.debug(`HttpListener.post() -- received request POST '/target-state', setting target state.`)
 
           body = ''
-          req.on('data', chunk => {
-            body += chunk
+          req.on('data', (chunk: any) => {
+            body += chunk.toString()
           })
 
           req.on('end', () => {
@@ -138,8 +134,4 @@ class HttpListener {
 
     this.platform.logger.debug(`HttpListener.configure() -- end`)
   }
-}
-
-module.exports = {
-  default: HttpListener
 }

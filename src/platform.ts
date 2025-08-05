@@ -2,15 +2,17 @@ import { Logger } from './services/logging/logger'
 import { ConfigService, IConfig } from './services/config'
 import { DatabaseService } from './services/database'
 import { Thermostat } from './services/thermostat'
+import { HttpListener } from './services/http-listener'
 
 export class Platform {
   readonly logger: Logger = new Logger()
-  readonly config: IConfig
+  public config: IConfig
   public database: DatabaseService
   public configService: ConfigService = new ConfigService(this)
   private http: HttpListener = new HttpListener(this)
   private thermostat: Thermostat
-  private api: API
+
+  // private api: API
 
   constructor() {
     this.logger.debug(`Platform.constructor() -- start`)
@@ -19,14 +21,7 @@ export class Platform {
     })
   }
 
-  /**
-   * @description Initialize the platform
-   *
-   * @private
-   * @return {Promise<void>}
-   * @memberof Platform
-   */
-  async init() {
+  private async init(): Promise<void> {
     this.logger.debug(`Platform.init() -- init`)
     this.configService.on('initialized', async (config) => {
       this.logger.debug(`Platform.init() -- configService emitted initialized`)
@@ -39,10 +34,10 @@ export class Platform {
       } catch (err) {
         this.logger.error('Platform.init()', err.message)
       }
-      this.api = new API(this)
-      this.logger.debug(`Platform.init() -- initialized new API()`)
-      await this.api.listen()
-      this.logger.debug(`Platform.init() -- API is now listening.`)
+      // this.api = new API(this)
+      // this.logger.debug(`Platform.init() -- initialized new API()`)
+      // await this.api.listen()
+      // this.logger.debug(`Platform.init() -- API is now listening.`)
       this.thermostat = new Thermostat(this)
       this.logger.debug(`Platform.init() -- initialized new Thermostat()`)
       this.http.configure(config.hostname, config.port, this.thermostat)
@@ -51,8 +46,4 @@ export class Platform {
     await this.configService.initialize()
     this.logger.debug(`Platform.init() -- end`)
   }
-}
-
-module.exports = {
-  Platform
 }
