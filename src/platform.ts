@@ -1,4 +1,7 @@
-
+import { Logger } from './services/logging/logger'
+import { ConfigService, IConfig } from './services/config'
+import { DatabaseService } from './services/database'
+import { Thermostat } from './services/thermostat'
 
 export class Platform {
   readonly logger: Logger = new Logger()
