@@ -17,7 +17,7 @@ export class Thermostat {
 
   constructor(platform: Platform, config: IThermostatInstanceConfig) {
     this.platform = platform
-    this.instance_name = config.name
+    this.instance_name = config.name ?? 'default'
 
     this.platform.logger.debug(`Thermostat.constructor() -- Constructed new instance of Thermostat()`)
     // get initial data from azure

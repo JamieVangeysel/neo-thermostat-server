@@ -25,6 +25,7 @@ export class HttpListener {
       let body = ''
 
       const regex = new RegExp('(?<instance>\/[a-zA-Z0-9]+)(?<url>\/.+)').exec(req.url)
+      this.platform.logger.debug(`HttpListener.req() -- `, regex.groups['instance'], regex.groups['url'], req.url)
       const instance = regex.groups['instance']
       const url = regex.groups['url']
 
@@ -177,6 +178,7 @@ export class HttpListener {
   }
 
   getThermostat(instance_name: string) {
+    this.platform.logger.debug('getThermostat()', instance_name, this.platform.thermostats.find(e => e.Name === instance_name.substring(1)).Name)
     return this.platform.thermostats.find(e => e.Name === instance_name.substring(1))
   }
 }
