@@ -37,8 +37,8 @@ export class Relais extends EventEmitter {
         break
 
       case SwitchTypeEnum.WATER_VALVE:
-        onSwitches = this.switches.filter(e => ['WATER_VALVE'].includes(e.type))
-        break;
+        onSwitches = this.switches.filter(e => ['WATER_VALVE', 'HEAT_ELEMENT'].includes(e.type))
+        break
 
       case SwitchTypeEnum.COOL:
         // when COOL is enabled disable all heating related switches and enable cooling (and ventilation if applicable)
@@ -64,6 +64,28 @@ export class Relais extends EventEmitter {
 
     this.update().then(_ => {
       this.platform.logger.debug(`Relais.activate() -- end`)
+    })
+  }
+
+  deactivate(type: SwitchTypeEnum) {
+    this.platform.logger.debug(`Relais.deactivate() -- start`, type)
+
+    let offSwitches: IRelaisSwitch[] = this.switches.filter(e => ['WATER_VALVE'].includes(e.type))
+
+    // check if heat element is active but no heat valves are open
+    if (this.switches.filter(e => ['HEAT_ELEMENT'].includes(e.type) && e.active).length > 0 && this.switches.filter(e => ['HEAT_VALVE'].includes(e.type) && e.active).length === 0) {
+      for (let sw of this.switches.filter(e => ['HEAT_ELEMENT'].includes(e.type) && e.active)) {
+        offSwitches.push(sw)
+      }
+    }
+
+    offSwitches.forEach(async (e) => {
+      this.platform.logger.log(`Relais.activate() -- this.setState(${e.pinIndex}, SwitchStateEnum.OFF)`)
+      await this.setState(e, SwitchStateEnum.OFF)
+    })
+
+    this.update().then(_ => {
+      this.platform.logger.debug(`Relais.deactivate() -- end`)
     })
   }
 

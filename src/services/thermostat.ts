@@ -566,6 +566,13 @@ export class Thermostat {
   get WaterValveOn(): boolean {
     return this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE)?.active ?? null
   }
+
+  set WaterValveOn(value: boolean) {
+    if (value)
+      this.relais.activate(SwitchTypeEnum.WATER_VALVE)
+    else
+      this.relais.deactivate(SwitchTypeEnum.WATER_VALVE)
+  }
 }
 
 export interface ThermostatState {

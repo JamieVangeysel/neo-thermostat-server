@@ -153,6 +153,34 @@ export class HttpListener {
           res.end(JSON.stringify(valueResponse(this.getThermostat(instance).WaterValveOn ? 1 : 0)))
           break
 
+        case '/water-valve/active|POST':
+          // return on state for valve (relais with switch type WATER_VALVE)
+          this.platform.logger.debug(`HttpListener.post() -- received request '/water-valve/active', returning target state.`)
+          body = ''
+          req.on('data', (chunk: any) => {
+            body += chunk.toString()
+          })
+
+          req.on('end', () => {
+            try {
+              const {
+                value
+              } = JSON.parse(body)
+              this.getThermostat(instance).WaterValveOn = value
+              this.platform.logger.debug('Set target state to: ' + value)
+              res.writeHead(200, {
+                'Content-Type': 'application/json'
+              })
+              res.end(JSON.stringify(okResponse))
+            } catch (err) {
+              res.writeHead(500, {
+                'Content-Type': 'application/json'
+              })
+              res.end(JSON.stringify(err))
+            }
+          })
+          break
+
         case '/heating-element/on|GET':
           // return on state for outlet (relais with switch type HEAT_ELEMENT)
           this.platform.logger.debug(`HttpListener.get() -- received request '/heating-element/on', returning target state.`)
