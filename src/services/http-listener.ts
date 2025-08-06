@@ -43,7 +43,15 @@ export class HttpListener {
           res.writeHead(200, {
             'Content-Type': 'application/json'
           })
-          res.end(JSON.stringify(valueResponse(this.thermostat.CurrentTemperature)))
+          res.end(JSON.stringify(valueResponse(this.thermostat.HeatIndex)))
+          break
+
+        case '/current-relative-humidity|GET':
+          this.platform.logger.debug(`HttpListener.get() -- received request '/current-relative-humidity', returning current relative-humidity.`)
+          res.writeHead(200, {
+            'Content-Type': 'application/json'
+          })
+          res.end(JSON.stringify(valueResponse(this.thermostat.CurrentRelativeHumidity)))
           break
 
         case '/target-temperature|GET':
