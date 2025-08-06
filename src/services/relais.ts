@@ -13,6 +13,9 @@ export class Relais extends EventEmitter {
     this.platform = platform
     this.config = platform.config.relais
     this.switches = switches
+
+    setTimeout(_ => this.update(), 3 * 1000)
+    setInterval(_ => this.update(), 60 * 1000)
   }
 
   /**
