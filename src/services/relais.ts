@@ -99,7 +99,7 @@ export class Relais extends EventEmitter {
       this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates)
 
       for (let i = 0; i < relaisStates.length; i++) {
-        const sw = this.switches.find(e => e.pinIndex === i)
+        const sw = this.switches.find(e => e.pinIndex === i + 1)
         if (sw) {
           sw.active = relaisStates[i]
         } else {
