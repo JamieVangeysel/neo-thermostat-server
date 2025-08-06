@@ -95,12 +95,16 @@ export class Relais extends EventEmitter {
     try {
       const relaisResult = await fetch(`${this.config.secure ? 'https' : 'http'}://${this.config.hostname}/state`)
       this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`)
-      /** @type {boolean[]} */
-      const relaisStates = (await relaisResult.json()).status
+      const relaisStates: boolean[] = (await relaisResult.json()).status
       this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates)
 
       for (let i = 0; i < relaisStates.length; i++) {
-        this.switches[i].active = relaisStates[i]
+        const sw = this.switches.find(e => e.pinIndex === i)
+        if (sw) {
+          sw.active = relaisStates[i]
+        } else {
+          this.platform.logger.info('Switch with pinIndex is not defined on this instance', i)
+        }
       }
 
       this.emit('update', this.switches)

@@ -155,7 +155,7 @@ export class HttpListener {
 
         case '/water-valve/active|POST':
           // return on state for valve (relais with switch type WATER_VALVE)
-          this.platform.logger.debug(`HttpListener.post() -- received request '/water-valve/active', returning target state.`)
+          this.platform.logger.debug(`HttpListener.post() -- received request '/water-valve/active'.`)
           body = ''
           req.on('data', (chunk: any) => {
             body += chunk.toString()

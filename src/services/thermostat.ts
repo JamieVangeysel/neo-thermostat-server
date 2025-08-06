@@ -568,6 +568,7 @@ export class Thermostat {
   }
 
   set WaterValveOn(value: boolean) {
+    this.platform.logger.debug('Set target state WaterValveOn to: ' + value)
     if (value)
       this.relais.activate(SwitchTypeEnum.WATER_VALVE)
     else
