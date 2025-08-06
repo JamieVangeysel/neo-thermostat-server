@@ -30,7 +30,7 @@ export class Relais extends EventEmitter {
     switch (type) {
       case SwitchTypeEnum.HEAT:
         // when HEAT is enabled disable all cooling related switches and enable heating (and ventilation if applicable)
-        onSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'VENT'].includes(e.type))
+        onSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'HEAT_VALVE', 'VENT'].includes(e.type))
         offSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT'].includes(e.type))
         break
 
@@ -46,7 +46,7 @@ export class Relais extends EventEmitter {
       case SwitchTypeEnum.COOL:
         // when COOL is enabled disable all heating related switches and enable cooling (and ventilation if applicable)
         onSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT', 'VENT'].includes(e.type))
-        offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT'].includes(e.type))
+        offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'HEAT_VALVE'].includes(e.type))
         break
 
       case SwitchTypeEnum.VENT:
