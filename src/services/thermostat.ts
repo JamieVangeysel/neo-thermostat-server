@@ -556,15 +556,15 @@ export class Thermostat {
   }
 
   get HeatElementOn(): boolean {
-    return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT)?.active ?? false
+    return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT)?.active ?? null
   }
 
   get HeatValveOn(): boolean {
-    return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_VALVE)?.active ?? false
+    return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_VALVE)?.active ?? null
   }
 
   get WaterValveOn(): boolean {
-    return this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE)?.active ?? false
+    return this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE)?.active ?? null
   }
 }
 
