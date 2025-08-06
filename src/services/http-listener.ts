@@ -1,5 +1,6 @@
 import * as http from 'node:http'
 import { Platform } from '../platform'
+import { Thermostat } from './thermostat'
 
 const okResponse: any = {
   success: true
@@ -25,7 +26,7 @@ export class HttpListener {
       let body = ''
 
       const regex = new RegExp('(?<instance>\/[a-zA-Z0-9]+)(?<url>\/.+)').exec(req.url)
-      this.platform.logger.debug(`HttpListener.req() -- `, regex.groups['instance'], regex.groups['url'], req.url)
+      this.platform.logger.debug(`HttpListener.req() -- `, regex.groups['instance']?.substring(1), regex.groups['url'])
       const instance = regex.groups['instance']
       const url = regex.groups['url']
 
@@ -177,8 +178,8 @@ export class HttpListener {
     this.platform.logger.debug(`HttpListener.configure() -- end`)
   }
 
-  getThermostat(instance_name: string) {
-    this.platform.logger.debug('getThermostat()', instance_name, this.platform.thermostats.find(e => e.Name === instance_name.substring(1)).Name)
+  getThermostat(instance_name: string): Thermostat | undefined {
+    if (!instance_name) return undefined
     return this.platform.thermostats.find(e => e.Name === instance_name.substring(1))
   }
 }
