@@ -1,28 +1,32 @@
-import { Relais, SwitchTypeEnum } from './relais'
+import { Relais } from './relais'
 import { Platform } from '../platform'
 import { FileSystem } from './filesystem'
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info'
+import { IThermostatInstanceConfig, SwitchTypeEnum } from './config'
 
 export class Thermostat {
   private readonly platform: Platform
   private readonly fs: FileSystem = new FileSystem()
-  private readonly relais: Relais // woonkamer: 6d5b00c42c530b3469b04779146c0b97a723cb2524b60b07e5c327596ebd8f6baebca6bb79a2f1ce24e5a88d7426658a
+  private readonly relais: Relais
   private weatherInfo: WeatherInfoService
   private retries: number = 0
   private currentForecast: OpenWeatherMapResponse
   private temperatureHistory: { date: Date, temperature: number }[] = []
 
-  constructor(platform: Platform) {
+  private readonly instance_name: string
+
+  constructor(platform: Platform, config: IThermostatInstanceConfig) {
     this.platform = platform
+    this.instance_name = config.name
 
     this.platform.logger.debug(`Thermostat.constructor() -- Constructed new instance of Thermostat()`)
     // get initial data from azure
     this.getSensorData().then()
 
-    this.relais = new Relais(this.platform)
+    this.relais = new Relais(this.platform, config.switches)
 
     this.relais.on('update', (switches) => {
-      this.platform.config.relais.switches = switches
+      config.switches = switches
     })
 
     // check if logging file exists, if not create csv file
@@ -216,8 +220,8 @@ export class Thermostat {
     this.platform.logger.debug('Thermostat.handleHeatState() -- start')
 
     this.platform.logger.debug('Thermostat.handleHeatState() -- targetHeatingCoolingState is HEAT, check if currently heating')
-    this.platform.logger.debug('Thermostat.handleHeatState() -- config ', this.platform.config.relais.switches)
-    if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
+    this.platform.logger.debug('Thermostat.handleHeatState() -- config ', this.relais.switches)
+    if (this.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
       this.platform.logger.debug('system state is heating, turn off COOL')
       this.relais.activate(SwitchTypeEnum.NONE)
     }
@@ -225,7 +229,7 @@ export class Thermostat {
     if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
       this.platform.logger.debug('Thermostat.handleHeatState() -- The system is currently heating')
       // check if all relais are active
-      if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
+      if (this.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- HEAT is active but some relais are not activated!')
         this.relais.activate(SwitchTypeEnum.HEAT)
       }
@@ -247,7 +251,7 @@ export class Thermostat {
     else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
       this.platform.logger.debug('Thermostat.handleHeatState() -- The system is currently off')
       // check if all relais are inactive
-      if (this.platform.config.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && e.active)) {
+      if (this.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- NONE is active but some relais are activated!')
         this.relais.activate(SwitchTypeEnum.NONE)
       }
@@ -312,7 +316,7 @@ export class Thermostat {
   }
 
   private get sensorUrl() {
-    return `https://api.jamievangeysel.be/v1/neo/devices/${this.platform.config.temperatureSensor}/data`
+    return `https://api.jamievangeysel.be/v1/neo/devices/${this.instance.temperatureSensor}/data`
   }
 
   /**
@@ -330,15 +334,15 @@ export class Thermostat {
     // We have forecast data, we will add this data to out calculation to ensure nicer living conditions
     // temperature sensor heights .1m, .6m, 1.1m, 1.7m
     // vertical temp difference
-    const tempVerticalDeltaStanding = 4.0
-    const tempVerticalDeltaSitting = 3.0
+    // const tempVerticalDeltaStanding = 4.0
+    // const tempVerticalDeltaSitting = 3.0
 
     // fan speed calculations for temperature
-    const maxFanSpeed = 0.8 // at temperature 25.5
-    const minFanSpeed = 0.15 // at temperature 22.5
+    // const maxFanSpeed = 0.8 // at temperature 25.5
+    // const minFanSpeed = 0.15 // at temperature 22.5
 
-    const minFloorTemp = 19
-    const maxFloorTemp = 29
+    // const minFloorTemp = 19
+    // const maxFloorTemp = 29
     // Maximum temperature delta during cycling temperature when cycle in 15minutes, otherwise use ramp stats
     const maxTemperatureCycleDelta = 1.1
     const correctionTemp = maxTemperatureCycleDelta / 4
@@ -383,8 +387,8 @@ export class Thermostat {
     const coolingMax = this.TargetTemperature + (maxTemperatureCycleDelta / 2) - (correctionTemp / 2)
     const coolingMin = this.TargetTemperature - (maxTemperatureCycleDelta / 2) + correctionTemp
 
-    let heatingMinTH = 0
-    let heatingMaxTH = 0
+    // let heatingMinTH = 0
+    // let heatingMaxTH = 0
     // let coolingMinTH = 0
     // let coolingMaxTH = 0
 
@@ -402,18 +406,18 @@ export class Thermostat {
         deltas.fourHourTemperatureDelta.min
       )
       if (lowestDelta < heatingMin) {
-        heatingMinTH = lowestDelta
-        heatingMaxTH = heatingMinTH + maxTemperatureCycleDelta - correctionTemp
+        // heatingMinTH = lowestDelta
+        // heatingMaxTH = heatingMinTH + maxTemperatureCycleDelta - correctionTemp
       }
     } else {
       // HEATING cold start set min to current temp is lower than allowed min temp
       if (currentTemp < heatingMin) {
         // curent temp is lower then allowed minimum
-        heatingMinTH = currentTemp
-        heatingMaxTH = heatingMinTH + maxTemperatureCycleDelta - correctionTemp
+        // heatingMinTH = currentTemp
+        // heatingMaxTH = heatingMinTH + maxTemperatureCycleDelta - correctionTemp
       } else {
-        heatingMinTH = heatingMin
-        heatingMaxTH = heatingMax
+        // heatingMinTH = heatingMin
+        // heatingMaxTH = heatingMax
       }
 
       // COOLING cold start set max to current temp is higher than allowed max temp
@@ -441,14 +445,12 @@ export class Thermostat {
     }
   }
 
-  /**
-   * @description
-   * @readonly
-   * @private
-   * @type {TemperatureDeltaHistory}
-   * @memberof Thermostat
-   */
-  get temperatureDeltas() {
+  private get instance(): IThermostatInstanceConfig {
+    const thisInstance = (config: IThermostatInstanceConfig) => (config.name ?? 'default') === this.instance_name
+    return this.platform.config.instances.find(thisInstance)
+  }
+
+  private get temperatureDeltas() {
     /** @type {number} */
     const now = new Date().getTime()
     const hisAll = this.temperatureHistory
@@ -500,113 +502,69 @@ export class Thermostat {
   }
 
   /**
-   * @description
    * https://www.wrh.noaa.gov/psr/general/safety/heat/heatindex.png
    * https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml
-   * @readonly
-   * @type {number}
-   * @memberof Thermostat
    */
   get HeatIndex() {
     return this.calculateHeatIndex(this.CurrentTemperature, this.CurrentRelativeHumidity)
   }
 
-  /**
-   * @description
-   * @private
-   * @type {ThermostatState}
-   * @memberof Thermostat
-   */
-  get state() {
-    return this.platform.config.thermostatState
+  private get state(): ThermostatState {
+    return this.instance.thermostatState
   }
 
-  /**
-   * @description
-   * @param {ThermostatState} value
-   * @private
-   * @memberof Thermostat
-   */
-  set state(value) {
-    this.platform.config.thermostatState = value
+  // private set state(value: ThermostatState) {
+  //   this.instance.thermostatState = value
+  // }
+
+  public get Name(): string {
+    return this.instance_name
   }
 
-  /**
-   * @description
-   * @readonly
-   * @type {ThermostatState}
-   * @memberof Thermostat
-   */
-  get State() {
+  get State(): ThermostatState {
     return this.state
   }
 
-  /**
-   * @description
-   * @readonly
-   * @type {number}
-   * @memberof Thermostat
-   */
-  get CurrentTemperature() {
+  get CurrentTemperature(): number {
     return this.state.currentTemperature
   }
 
-  /**
-   * @description
-   * @readonly
-   * @type {number}
-   * @memberof Thermostat
-   */
-  get CurrentRelativeHumidity() {
+  get CurrentRelativeHumidity(): number {
     return this.state.currentRelativeHumidity
   }
 
-  /**
-   * @description
-   * @type {number}
-   * @memberof Thermostat
-   */
-  get TargetTemperature() {
+  get TargetTemperature(): number {
     return this.state.targetTemperature
   }
 
-  /**
-   * @description
-   * @param {number} value
-   * @memberof Thermostat
-   */
-  set TargetTemperature(value) {
+  set TargetTemperature(value: number) {
     this.state.targetTemperature = value
-    this.evaluateChanges()
+    this.evaluateChanges().then()
   }
 
-  /**
-   * @description
-   * @readonly
-   * @type {HeatingCoolingStateEnum}
-   * @memberof Thermostat
-   */
-  get CurrentHeatingCoolingState() {
+  get CurrentHeatingCoolingState(): HeatingCoolingStateEnum {
     return this.state.currentHeatingCoolingState
   }
 
-  /**
-   * @description
-   * @type {HeatingCoolingStateEnum}
-   * @memberof Thermostat
-   */
-  get TargetHeatingCoolingState() {
+  get TargetHeatingCoolingState(): HeatingCoolingStateEnum {
     return this.state.targetHeatingCoolingState
   }
 
-  /**
-   * @description
-   * @param {HeatingCoolingStateEnum} value
-   * @memberof Thermostat
-   */
-  set TargetHeatingCoolingState(value) {
+  set TargetHeatingCoolingState(value: HeatingCoolingStateEnum) {
     this.state.targetHeatingCoolingState = value
     this.evaluateChanges()
+  }
+
+  get HeatElementOn(): boolean {
+    return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT)?.active ?? false
+  }
+
+  get HeatValveOn(): boolean {
+    return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_VALVE)?.active ?? false
+  }
+
+  get WaterValveOn(): boolean {
+    return this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE)?.active ?? false
   }
 }
 

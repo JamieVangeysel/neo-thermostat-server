@@ -1,13 +1,18 @@
 import { Platform } from '../platform'
 import { EventEmitter } from 'events'
+import { IRelaisSwitch, IRelaisV2, SwitchStateEnum, SwitchTypeEnum } from './config'
 
 export class Relais extends EventEmitter {
   platform: Platform
+  config: IRelaisV2
+  switches: IRelaisSwitch[]
 
-  constructor(platform: Platform) {
+  constructor(platform: Platform, switches: IRelaisSwitch[]) {
     super()
 
     this.platform = platform
+    this.config = platform.config.relais
+    this.switches = switches
   }
 
   /**
@@ -15,8 +20,36 @@ export class Relais extends EventEmitter {
    */
   activate(type: SwitchTypeEnum) {
     this.platform.logger.debug(`Relais.activate() -- start`, type)
-    const onSwitches = this.platform.config.relais.switches.filter(e => e.type === type)
-    const offSwitches = this.platform.config.relais.switches.filter(e => e.type !== type)
+
+    let onSwitches: IRelaisSwitch[] = []
+    let offSwitches: IRelaisSwitch[] = []
+
+    switch (type) {
+      case SwitchTypeEnum.HEAT:
+        // when HEAT is enabled disable all cooling related switches and enable heating (and ventilation if applicable)
+        onSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'VENT'].includes(e.type))
+        offSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT'].includes(e.type))
+        break
+
+      case SwitchTypeEnum.NONE:
+        onSwitches = []
+        offSwitches = this.switches
+        break
+
+      case SwitchTypeEnum.WATER_VALVE:
+        onSwitches = this.switches.filter(e => ['WATER_VALVE'].includes(e.type))
+        break;
+
+      case SwitchTypeEnum.COOL:
+        // when COOL is enabled disable all heating related switches and enable cooling (and ventilation if applicable)
+        onSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT', 'VENT'].includes(e.type))
+        offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT'].includes(e.type))
+        break
+
+      case SwitchTypeEnum.VENT:
+        this.platform.logger.error(`Relais.activate() -- type '${type}' cannot be controlled separately`)
+        break
+    }
     this.platform.logger.log(`Relais.activate() -- filtered on and off lists`, onSwitches, offSwitches)
 
     offSwitches.forEach(async (e) => {
@@ -28,30 +61,27 @@ export class Relais extends EventEmitter {
       this.platform.logger.log(`Relais.activate() -- this.setState(${e.pinIndex}, SwitchStateEnum.ON)`)
       await this.setState(e, SwitchStateEnum.ON)
     })
-    this.update()
-    this.platform.logger.debug(`Relais.activate() -- end`)
+
+    this.update().then(_ => {
+      this.platform.logger.debug(`Relais.activate() -- end`)
+    })
   }
 
-  /**
-   * @description
-   * @private
-   * @memberof Relais
-   */
-  async update() {
+  private async update() {
     this.platform.logger.debug(`Relais.update() -- start`)
     this.platform.logger.debug(`Relais.update() -- get current state from relaisController`)
     try {
-      const relaisResult = await fetch(`${this.platform.config.relais.secure ? 'https' : 'http'}://${this.platform.config.relais.hostname}/state`)
+      const relaisResult = await fetch(`${this.config.secure ? 'https' : 'http'}://${this.config.hostname}/state`)
       this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`)
       /** @type {boolean[]} */
       const relaisStates = (await relaisResult.json()).status
       this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates)
 
       for (let i = 0; i < relaisStates.length; i++) {
-        this.platform.config.relais.switches[i].active = relaisStates[i]
+        this.switches[i].active = relaisStates[i]
       }
 
-      this.emit('update', this.platform.config.relais.switches)
+      this.emit('update', this.switches)
     } catch (err) {
       this.platform.logger.error(`Relais.update() -- get state failed!`)
     }
@@ -75,7 +105,7 @@ export class Relais extends EventEmitter {
         this.platform.logger.log(`Relais.setState() -- relais is currently OFF and needs to be switched ON`, relais.pinIndex)
       }
       try {
-        await fetch(`${this.platform.config.relais.secure ? 'https' : 'http'}://${this.platform.config.relais.hostname}/${relais.pinIndex}/${state}`)
+        await fetch(`${this.config.secure ? 'https' : 'http'}://${this.config.hostname}/${relais.pinIndex}/${state}`)
       } catch (err) {
         this.platform.logger.error(`Relais.setState() -- error`, err)
         this.emit('error', err)
@@ -83,28 +113,4 @@ export class Relais extends EventEmitter {
     }
     this.platform.logger.debug(`Relais.setState() -- end`)
   }
-}
-
-export interface IRelais {
-  hostname: string
-  secure: boolean
-  switches: IRelaisSwitch[]
-}
-
-export interface IRelaisSwitch {
-  pinIndex: number
-  active: boolean
-  type: SwitchTypeEnum
-}
-
-export enum SwitchTypeEnum {
-  HEAT = 'HEAT',
-  COOL = 'COOL',
-  VENT = 'VENT', // experimental => ventilation won't be added until v3
-  NONE = 'NONE' // dummy entry to be able to deactivate all relais switches
-}
-
-export enum SwitchStateEnum {
-  ON = 'on',
-  OFF = 'off'
 }

@@ -1,16 +1,18 @@
 import { Logger } from './services/logging/logger'
-import { ConfigService, IConfig } from './services/config'
+import { ConfigService, IConfigV3 } from './services/config'
 import { DatabaseService } from './services/database'
 import { Thermostat } from './services/thermostat'
 import { HttpListener } from './services/http-listener'
+import { Relais } from './services/relais'
 
 export class Platform {
   readonly logger: Logger = new Logger()
-  public config: IConfig
+  public config: IConfigV3
   public database: DatabaseService
   public configService: ConfigService = new ConfigService(this)
   private http: HttpListener = new HttpListener(this)
-  private thermostat: Thermostat
+  public thermostats: Thermostat[]
+  public readonly relais: Relais
 
   // private api: API
 
@@ -23,7 +25,7 @@ export class Platform {
 
   private async init(): Promise<void> {
     this.logger.debug(`Platform.init() -- init`)
-    this.configService.on('initialized', async (config) => {
+    this.configService.on('initialized', async (config: IConfigV3) => {
       this.logger.debug(`Platform.init() -- configService emitted initialized`)
       this.config = config
       this.logger.log(`Platform.init() -- set config`, config)
@@ -38,9 +40,11 @@ export class Platform {
       // this.logger.debug(`Platform.init() -- initialized new API()`)
       // await this.api.listen()
       // this.logger.debug(`Platform.init() -- API is now listening.`)
-      this.thermostat = new Thermostat(this)
+      for (let thermostat of config.instances) {
+        this.thermostats.push(new Thermostat(this, thermostat))
+      }
       this.logger.debug(`Platform.init() -- initialized new Thermostat()`)
-      this.http.configure(config.hostname, config.port, this.thermostat)
+      this.http.configure(config.hostname, config.port)
       this.logger.log(`Platform.init() -- configure http instance`)
     })
     await this.configService.initialize()

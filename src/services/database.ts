@@ -1,10 +1,10 @@
 import { Platform } from '../platform'
-import { IConfig } from './config'
+import { IConfigV3 } from './config'
 import { MongoClient } from 'mongodb'
 
 export class DatabaseService {
   private readonly platform: Platform
-  private readonly config: IConfig
+  private readonly config: IConfigV3
   private readonly url: string
 
   /**

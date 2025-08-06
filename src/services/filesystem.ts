@@ -1,6 +1,6 @@
 import * as fs from 'node:fs'
 import { Logger } from './logging/logger'
-import { IConfig } from './config'
+import { IConfig, IConfigV3 } from './config'
 
 const logger: Logger = new Logger()
 
@@ -126,13 +126,12 @@ export class FileSystem {
     return JSON.parse(text) as T
   }
 
-  checkBuffer(buffer: Buffer): IConfig {
+  checkBuffer(buffer: Buffer): IConfig | IConfigV3 {
     if (buffer) {
       logger.debug(`checkBuffer() -- buffer is not null.`)
       /** @type {string} */
       const configText: string = buffer.toString()
       try {
-        /** @type {IConfig} */
         const configObj = JSON.parse(configText)
         logger.debug(`checkBuffer() -- buffer is JSON.`)
         if (configObj && configObj.version >= 2) {

@@ -1,6 +1,5 @@
 import * as http from 'node:http'
 import { Platform } from '../platform'
-import { Thermostat } from './thermostat'
 
 const okResponse: any = {
   success: true
@@ -14,28 +13,28 @@ const valueResponse = (value: any): any => {
 
 export class HttpListener {
   private readonly platform: Platform
-  private thermostat: Thermostat
 
   constructor(platform: Platform) {
     this.platform = platform
   }
 
-  configure(hostname: string, port: number, thermostat: Thermostat) {
+  configure(hostname: string, port: number) {
     this.platform.logger.debug(`HttpListener.configure() -- start`)
-    this.thermostat = thermostat
 
     const server = http.createServer((req: any, res: any): void => {
       let body = ''
 
-      req.url = req.url.replace('/' + this.platform.config.instance, '')
+      const regex = new RegExp('(?<instance>\/[a-zA-Z0-9]+)(?<url>\/.+)').exec(req.url)
+      const instance = regex.groups['instance']
+      const url = regex.groups['url']
 
-      switch (`${req.url}|${req.method}`) {
+      switch (`${url}|${req.method}`) {
         case '/|GET':
           this.platform.logger.debug(`HttpListener.get() -- received request '/', returning current status.`)
           res.writeHead(200, {
             'Content-Type': 'application/json'
           })
-          res.end(JSON.stringify(valueResponse(this.thermostat.State)))
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).State)))
           break
 
         case '/current-temperature|GET':
@@ -43,7 +42,7 @@ export class HttpListener {
           res.writeHead(200, {
             'Content-Type': 'application/json'
           })
-          res.end(JSON.stringify(valueResponse(this.thermostat.HeatIndex)))
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).HeatIndex)))
           break
 
         case '/current-relative-humidity|GET':
@@ -51,7 +50,7 @@ export class HttpListener {
           res.writeHead(200, {
             'Content-Type': 'application/json'
           })
-          res.end(JSON.stringify(valueResponse(this.thermostat.CurrentRelativeHumidity)))
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).CurrentRelativeHumidity)))
           break
 
         case '/target-temperature|GET':
@@ -59,7 +58,7 @@ export class HttpListener {
           res.writeHead(200, {
             'Content-Type': 'application/json'
           })
-          res.end(JSON.stringify(valueResponse(this.thermostat.TargetTemperature)))
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).TargetTemperature)))
           break
 
         case '/target-temperature|POST':
@@ -75,7 +74,7 @@ export class HttpListener {
               const {
                 value
               } = JSON.parse(body)
-              this.thermostat.TargetTemperature = value
+              this.getThermostat(instance).TargetTemperature = value
               this.platform.logger.debug('Set target temperature to: ' + value)
               res.writeHead(200, {
                 'Content-Type': 'application/json'
@@ -95,7 +94,7 @@ export class HttpListener {
           res.writeHead(200, {
             'Content-Type': 'application/json'
           })
-          res.end(JSON.stringify(valueResponse(this.thermostat.CurrentHeatingCoolingState)))
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).CurrentHeatingCoolingState)))
           break
 
         case '/target-state|GET':
@@ -103,7 +102,7 @@ export class HttpListener {
           res.writeHead(200, {
             'Content-Type': 'application/json'
           })
-          res.end(JSON.stringify(valueResponse(this.thermostat.TargetHeatingCoolingState)))
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).TargetHeatingCoolingState)))
           break
 
         case '/target-state|POST':
@@ -119,7 +118,7 @@ export class HttpListener {
               const {
                 value
               } = JSON.parse(body)
-              this.thermostat.TargetHeatingCoolingState = value
+              this.getThermostat(instance).TargetHeatingCoolingState = value
               this.platform.logger.debug('Set target state to: ' + value)
               res.writeHead(200, {
                 'Content-Type': 'application/json'
@@ -132,6 +131,33 @@ export class HttpListener {
               res.end(JSON.stringify(err))
             }
           })
+          break
+
+        case '/heating-valve/active|GET':
+          // return on state for outlet (relais with switch type HEAT_VALVE)
+          this.platform.logger.debug(`HttpListener.get() -- received request '/heating-valve/active', returning target state.`)
+          res.writeHead(200, {
+            'Content-Type': 'application/json'
+          })
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).HeatValveOn ? 1 : 0)))
+          break
+
+        case '/water-valve/active|GET':
+          // return on state for valve (relais with switch type WATER_VALVE)
+          this.platform.logger.debug(`HttpListener.get() -- received request '/water-valve/active', returning target state.`)
+          res.writeHead(200, {
+            'Content-Type': 'application/json'
+          })
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).WaterValveOn ? 1 : 0)))
+          break
+
+        case '/heating-element/on|GET':
+          // return on state for outlet (relais with switch type HEAT_ELEMENT)
+          this.platform.logger.debug(`HttpListener.get() -- received request '/heating-element/on', returning target state.`)
+          res.writeHead(200, {
+            'Content-Type': 'application/json'
+          })
+          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).HeatElementOn)))
           break
 
         default:
@@ -148,5 +174,9 @@ export class HttpListener {
     })
 
     this.platform.logger.debug(`HttpListener.configure() -- end`)
+  }
+
+  getThermostat(instance_name: string) {
+    return this.platform.thermostats.find(e => e.Name === instance_name.substring(1))
   }
 }
