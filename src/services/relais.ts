@@ -36,7 +36,7 @@ export class Relais extends EventEmitter {
 
       case SwitchTypeEnum.NONE:
         onSwitches = []
-        offSwitches = this.switches
+        offSwitches = this.switches.filter(e => !['WATER_VALVE'].includes(e.type))
         break
 
       case SwitchTypeEnum.WATER_VALVE:
