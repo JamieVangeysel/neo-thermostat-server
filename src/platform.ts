@@ -3,7 +3,6 @@ import { ConfigService, IConfigV3 } from './services/config'
 import { DatabaseService } from './services/database'
 import { Thermostat } from './services/thermostat'
 import { HttpListener } from './services/http-listener'
-import { Relais } from './services/relais'
 
 export class Platform {
   readonly logger: Logger = new Logger()
@@ -11,8 +10,7 @@ export class Platform {
   public database: DatabaseService
   public configService: ConfigService = new ConfigService(this)
   private http: HttpListener = new HttpListener(this)
-  public thermostats: Thermostat[]
-  public readonly relais: Relais
+  public thermostats: Thermostat[] = []
 
   // private api: API
 
