@@ -1,6 +1,5 @@
-const int pinCount = 2;
+int pinCount;
 const int pins[] = {12, 14};
-bool pinStates[] = {false, false};
 
 // Load Wi-Fi library
 #include <ESP8266WiFi.h>
@@ -36,6 +35,8 @@ void setup(){
   // Set pinmode to output for onboard LED and write HIGH
   pinMode(D0, OUTPUT);
   digitalWrite(D0, LOW);
+
+  pinCount = sizeof(pins) / 4
   
   for(int i = 0; i < pinCount; i++) {
     pinMode(pins[i], OUTPUT);
@@ -98,53 +99,69 @@ void loop(){
             // turns the GPIOs on and off
             if (header.indexOf("GET /state") >= 0) {
               String response = "{\"status\": [";
-              if (pinStates[0] == true) {
+              if (digitalRead(pins[0]) == HIGH) {
                 response = response + "true,";
               } else {
                 response = response + "false,";
               }
-              if (pinStates[1] == true) {
+              if (digitalRead(pins[1]) == HIGH) {
                 response = response + "true";
               } else {
                 response = response + "false";
               }
                 response = response + "]}";
               client.println(response);
-            } else if (header.indexOf("GET /1/on") >= 0) {
-              Serial.println("GPIO 1 on");
-              pinStates[0] = true;
-              digitalWrite(pins[0], LOW);
-              client.println("{\"status\":true}");
-            } else if (header.indexOf("GET /1/off") >= 0) {
-              Serial.println("GPIO 1 off");
-              pinStates[0] = false;
-              digitalWrite(pins[0], HIGH);
-              client.println("{\"status\":false}");
-            } else if (header.indexOf("GET /1/state") >= 0) {
-              if (pinStates[0] == true) {
-                client.println("{\"status\":true}");
-              } else {
-                client.println("{\"status\":false}");
-              }
-            } else if (header.indexOf("GET /2/on") >= 0) {
-              Serial.println("GPIO 2 on");
-              pinStates[1] = true;
-              digitalWrite(pins[1], LOW);
-              client.println("{\"status\":true}");
-            } else if (header.indexOf("GET /2/off") >= 0) {
-              Serial.println("GPIO 2 off");
-              pinStates[1] = false;
-              digitalWrite(pins[1], HIGH);
-              client.println("{\"status\":false}");
-            } else if (header.indexOf("GET /2/state") >= 0) {
-              if (pinStates[1] == true) {
-                client.println("{\"status\":true}");
-              } else {
-                client.println("{\"status\":false}");
-              }
-            } else {
-              client.println("{\"error\":\"Method Not Found\"}");
             }
+
+            for (int i = 0; i < pinCount; i++) {
+              if (header.indexOf("GET /" + (i + 1) + "/on") >= 0) {
+                Serial.println("GPIO " + (i + 1) + " on");
+                digitalWrite(pins[i], LOW);
+                client.println("{\"status\":true}");
+              } else if (header.indexOf("GET /" + (i + 1) + "/off") >= 0) {
+                Serial.println("GPIO " + (i + 1) + " off");
+                digitalWrite(pins[i], HIGH);
+                client.println("{\"status\":false}");
+              } else if (header.indexOf("GET /" + (i + 1) + "/state") >= 0) {
+                if (digitalRead(pins[i]) == true) {
+                  client.println("{\"status\":true}");
+                } else {
+                  client.println("{\"status\":false}");
+                }
+              }
+            }
+
+//             if (header.indexOf("GET /1/on") >= 0) {
+//               Serial.println("GPIO 1 on");
+//               digitalWrite(pins[0], LOW);
+//               client.println("{\"status\":true}");
+//             } else if (header.indexOf("GET /1/off") >= 0) {
+//               Serial.println("GPIO 1 off");
+//               digitalWrite(pins[0], HIGH);
+//               client.println("{\"status\":false}");
+//             } else if (header.indexOf("GET /1/state") >= 0) {
+//               if (digitalRead(pins[0]) == HIGH) {
+//                 client.println("{\"status\":true}");
+//               } else {
+//                 client.println("{\"status\":false}");
+//               }
+//             } else if (header.indexOf("GET /2/on") >= 0) {
+//               Serial.println("GPIO 2 on");
+//               digitalWrite(pins[1], LOW);
+//               client.println("{\"status\":true}");
+//             } else if (header.indexOf("GET /2/off") >= 0) {
+//               Serial.println("GPIO 2 off");
+//               digitalWrite(pins[1], HIGH);
+//               client.println("{\"status\":false}");
+//             } else if (header.indexOf("GET /2/state") >= 0) {
+//               if (digitalRead(pins[1]) == HIGH) {
+//                 client.println("{\"status\":true}");
+//               } else {
+//                 client.println("{\"status\":false}");
+//               }
+//             } else {
+//               client.println("{\"error\":\"Method Not Found\"}");
+//             }
             
             // The HTTP response ends with another blank line
             client.println();
