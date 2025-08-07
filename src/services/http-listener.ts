@@ -26,9 +26,9 @@ export class HttpListener {
       let body = ''
 
       const regex = new RegExp('(?<instance>\/[a-zA-Z0-9]+)(?<url>\/.+)').exec(req.url)
-      this.platform.logger.debug(`HttpListener.req() -- `, regex.groups['instance']?.substring(1), regex.groups['url'])
-      const instance = regex.groups['instance']
-      const url = regex.groups['url']
+      const instance = regex.groups?.instance
+      const url = regex.groups?.url
+      this.platform.logger.debug(`HttpListener.req() -- `, instance?.substring(1), url)
 
       switch (`${url}|${req.method}`) {
         case '/|GET':

@@ -564,6 +564,7 @@ export class Thermostat {
   }
 
   get WaterValveOn(): boolean {
+    this.platform.logger.debug(`WaterValveOn() -- `, this.relais.switches, this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE))
     return this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE)?.active ?? null
   }
 
