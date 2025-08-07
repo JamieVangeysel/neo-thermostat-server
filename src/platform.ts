@@ -6,7 +6,7 @@ import { HttpListener } from './services/http-listener'
 
 export class Platform {
   readonly logger: Logger = new Logger()
-  public config: IConfigV3
+  private _config: IConfigV3
   public database: DatabaseService
   public configService: ConfigService = new ConfigService(this)
   private http: HttpListener = new HttpListener(this)
@@ -25,7 +25,7 @@ export class Platform {
     this.logger.debug(`Platform.init() -- init`)
     this.configService.on('initialized', async (config: IConfigV3) => {
       this.logger.debug(`Platform.init() -- configService emitted initialized`)
-      this.config = config
+      this._config = config
       this.logger.log(`Platform.init() -- set config`, config)
       this.database = new DatabaseService(this)
       try {
@@ -47,5 +47,14 @@ export class Platform {
     })
     await this.configService.initialize()
     this.logger.debug(`Platform.init() -- end`)
+  }
+
+  public get config(): IConfigV3 {
+    return this._config
+  }
+
+  public set config(config: IConfigV3) {
+    this.logger.info(`Platform.config set() -- current, next`, this._config, config)
+    this._config = config
   }
 }
