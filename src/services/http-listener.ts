@@ -25,7 +25,7 @@ export class HttpListener {
     const server = http.createServer((req: any, res: any): void => {
       let body = ''
 
-      const regex = new RegExp('(?<instance>\/[a-zA-Z0-9]+)(?<url>\/.+)').exec(req.url)
+      const regex = new RegExp('(?<instance>\/[a-zA-Z0-9-_]+)(?<url>\/.+)').exec(req.url)
       const instance = regex?.groups?.instance
       const url = regex?.groups?.url
       this.platform.logger.debug(`HttpListener.req() -- `, instance?.substring(1), url)
