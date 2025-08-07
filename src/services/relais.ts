@@ -6,6 +6,7 @@ export class Relais extends EventEmitter {
   platform: Platform
   config: IRelaisV2
   switches: IRelaisSwitch[]
+  allSwitches: IRelaisSwitch[]
 
   constructor(platform: Platform, switches: IRelaisSwitch[]) {
     super()
@@ -13,6 +14,9 @@ export class Relais extends EventEmitter {
     this.platform = platform
     this.config = platform.config.relais
     this.switches = switches
+
+    this.allSwitches = platform.config.instances.reduce((prev, curr) => prev.concat(curr), [])
+    this.platform.logger.info('Relais all switches', this.allSwitches)
   }
 
   /**
@@ -27,13 +31,17 @@ export class Relais extends EventEmitter {
     switch (type) {
       case SwitchTypeEnum.HEAT:
         // when HEAT is enabled disable all cooling related switches and enable heating (and ventilation if applicable)
-        onSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'VENT'].includes(e.type))
-        offSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT'].includes(e.type))
+        onSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'HEAT_VALVE', 'VENT'].includes(e.type))
+        offSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT', 'COOL_VALVE'].includes(e.type))
         break
 
       case SwitchTypeEnum.NONE:
         onSwitches = []
-        offSwitches = this.switches
+        offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'HEAT_VALVE', 'COOL', 'COOL_ELEMENT', 'COOL_VALVE', 'VENT'].includes(e.type))
+        // if water heater is running leave heating element engaged
+        if (this.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE && e.active)) {
+          offSwitches = this.switches.filter(e => e.type !== SwitchTypeEnum.HEAT_ELEMENT)
+        }
         break
 
       case SwitchTypeEnum.WATER_VALVE:
@@ -42,8 +50,12 @@ export class Relais extends EventEmitter {
 
       case SwitchTypeEnum.COOL:
         // when COOL is enabled disable all heating related switches and enable cooling (and ventilation if applicable)
-        onSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT', 'VENT'].includes(e.type))
-        offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT'].includes(e.type))
+        onSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT', 'COOL_VALVE', 'VENT'].includes(e.type))
+        offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'HEAT_VALVE'].includes(e.type))
+        // if water heater is running leave heating element engaged
+        if (this.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE && e.active)) {
+          offSwitches = this.switches.filter(e => e.type !== SwitchTypeEnum.HEAT_ELEMENT)
+        }
         break
 
       case SwitchTypeEnum.VENT:
@@ -70,19 +82,32 @@ export class Relais extends EventEmitter {
   deactivate(type: SwitchTypeEnum) {
     this.platform.logger.debug(`Relais.deactivate() -- start`, type)
 
-    let offSwitches: IRelaisSwitch[] = this.switches.filter(e => ['WATER_VALVE'].includes(e.type))
+    switch (type) {
+      case SwitchTypeEnum.WATER_VALVE:
+        let offSwitches: IRelaisSwitch[] = this.switches.filter(e => e.type === SwitchTypeEnum.WATER_VALVE)
 
-    // check if heat element is active but no heat valves are open
-    if (this.switches.filter(e => ['HEAT_ELEMENT'].includes(e.type) && e.active).length > 0 && this.switches.filter(e => ['HEAT_VALVE'].includes(e.type) && e.active).length === 0) {
-      for (let sw of this.switches.filter(e => ['HEAT_ELEMENT'].includes(e.type) && e.active)) {
-        offSwitches.push(sw)
-      }
+        // check if there is a heat element active
+        if (this.switches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT && e.active)) {
+          // check if all heat valves are closed
+          if (!this.allSwitches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT && e.active)) {
+            for (let sw of this.switches.filter(e => e.type === SwitchTypeEnum.HEAT_ELEMENT && e.active)) {
+              offSwitches.push(sw)
+            }
+          } else {
+            // check if there is a second heating element, if so we can still turn this instance off
+            const thisHeatElement = this.switches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT)
+            if (thisHeatElement && this.allSwitches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT && e.pinIndex !== thisHeatElement.pinIndex)) {
+              offSwitches.push(thisHeatElement)
+            }
+          }
+        }
+
+        offSwitches.forEach(async (e) => {
+          this.platform.logger.log(`Relais.activate() -- this.setState(${e.pinIndex}, SwitchStateEnum.OFF)`)
+          await this.setState(e, SwitchStateEnum.OFF)
+        })
+        break
     }
-
-    offSwitches.forEach(async (e) => {
-      this.platform.logger.log(`Relais.activate() -- this.setState(${e.pinIndex}, SwitchStateEnum.OFF)`)
-      await this.setState(e, SwitchStateEnum.OFF)
-    })
 
     this.update().then(_ => {
       this.platform.logger.debug(`Relais.deactivate() -- end`)
