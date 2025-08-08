@@ -10,7 +10,7 @@ export class DatabaseService {
   /**
    * @description This boolean will be set to true if config is ok and we can connect to database
    */
-  private enabled: boolean = false
+  private _enabled: boolean = false
 
   constructor(platform: Platform) {
     platform.logger.debug(`DatabaseService.constructor() -- start`)
@@ -34,7 +34,7 @@ export class DatabaseService {
           this.platform.logger.error(`DatabaseService.init() -- MongoClient.connect error: `, connectErr)
           return reject(connectErr)
         }
-        this.enabled = true
+        this._enabled = true
         this.platform.logger.debug(`DatabaseService.init() -- Client connected, created/openend database ${this.dbName}`)
         db.close()
         this.platform.logger.debug(`DatabaseService.init() -- Client closed db connection`)
@@ -266,5 +266,9 @@ export class DatabaseService {
       .replace('{db}', this.config.mongoDB.db)
       .replace('{username}', this.config.mongoDB.username)
       .replace('{password}', this.config.mongoDB.password)
+  }
+
+  public get enabled(): boolean {
+    return this._enabled
   }
 }

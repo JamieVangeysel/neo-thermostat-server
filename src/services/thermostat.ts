@@ -46,13 +46,15 @@ export class Thermostat {
     this.weatherInfo.on('forecast', async (forecast: any) => {
       this.platform.logger.debug(`Thermostat.weatherInfo.on('forecast')`, forecast.main)
       try {
-        const ok = await this.platform.database.insertIntoCollection('forecastHistory', {
-          date: new Date(),
-          forecast
-        })
+        if (this.platform.database.enabled) {
+          const ok = await this.platform.database.insertIntoCollection('forecastHistory', {
+            date: new Date(),
+            forecast
+          })
 
-        if (ok) {
-          this.platform.logger.log(`Thermostat.weatherInfo.on('forecast') -- Succesfully added forecast to forecastHistory in DB.`)
+          if (ok) {
+            this.platform.logger.log(`Thermostat.weatherInfo.on('forecast') -- Succesfully added forecast to forecastHistory in DB.`)
+          }
         }
       } catch (err) {
         this.platform.logger.error(`Thermostat.weatherInfo.on('forecast') -- Error adding forecast to DB!`)
