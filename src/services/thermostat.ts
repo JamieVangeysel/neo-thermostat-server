@@ -53,7 +53,7 @@ export class Thermostat {
           })
 
           if (ok) {
-            this.platform.logger.log(`Thermostat.weatherInfo.on('forecast') -- Succesfully added forecast to forecastHistory in DB.`)
+            this.platform.logger.log(`Thermostat.weatherInfo.on('forecast') -- Successfully added forecast to forecastHistory in DB.`)
           }
         }
       } catch (err) {
