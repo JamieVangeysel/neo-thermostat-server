@@ -15,18 +15,18 @@ export class Thermostat {
 
   private readonly instance_name: string
 
-  constructor(platform: Platform, config: IThermostatInstanceConfig) {
+  constructor(platform: Platform, instance_name: string = 'default') {
     this.platform = platform
-    this.instance_name = config.name ?? 'default'
+    this.instance_name = instance_name
 
     this.platform.logger.debug(`Thermostat.constructor() -- Constructed new instance of Thermostat()`)
     // get initial data from azure
     this.getSensorData().then()
 
-    this.relais = new Relais(this.platform, config.switches)
+    this.relais = new Relais(this.platform, this.instance.switches)
 
     this.relais.on('update', (switches) => {
-      config.switches = switches
+      this.instance.switches = switches
     })
 
     // check if logging file exists, if not create csv file

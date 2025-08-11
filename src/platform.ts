@@ -39,7 +39,7 @@ export class Platform {
       // await this.api.listen()
       // this.logger.debug(`Platform.init() -- API is now listening.`)
       for (let thermostat of config.instances) {
-        this.thermostats.push(new Thermostat(this, thermostat))
+        this.thermostats.push(new Thermostat(this, thermostat.name))
       }
       this.logger.debug(`Platform.init() -- initialized new Thermostat()`)
       this.http.configure(config.hostname, config.port)
