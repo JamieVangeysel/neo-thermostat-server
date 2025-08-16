@@ -3,11 +3,11 @@ import { Platform } from '../../../platform'
 import { IRelaisSwitch } from '../../config'
 
 export default async function valvesController(fastify: any) {
-  fastify.get('', handleGetValves.bind(fastify))
+  fastify.get('', handleGetValves)
 }
 
 async function handleGetValves(request: FastifyRequest, reply: FastifyReply) {
-  const platform: Platform = (this.locals)
+  const platform: Platform = request.locals
 
   const start = performance.now()
   let response: FastifyReply
