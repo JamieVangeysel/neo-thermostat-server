@@ -6,7 +6,6 @@ export class Relais extends EventEmitter {
   platform: Platform
   config: IRelaisV2
   switches: IRelaisSwitch[]
-  allSwitches: IRelaisSwitch[]
 
   constructor(platform: Platform, switches: IRelaisSwitch[]) {
     super()
@@ -15,7 +14,6 @@ export class Relais extends EventEmitter {
     this.config = platform.config.relais
     this.switches = switches
 
-    this.allSwitches = platform.config.instances.reduce((prev, curr) => prev.concat(curr), [])
     this.platform.logger.info('Relais all switches', this.allSwitches)
   }
 
@@ -164,5 +162,9 @@ export class Relais extends EventEmitter {
       }
     }
     this.platform.logger.debug(`Relais.setState() -- end`)
+  }
+
+  private get allSwitches(): IRelaisSwitch[] {
+    return this.platform.config.instances.reduce((prev, curr) => prev.concat(curr.switches), [])
   }
 }
