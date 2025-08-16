@@ -39,8 +39,9 @@ export class Relais extends EventEmitter {
         onSwitches = []
         offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'HEAT_VALVE', 'COOL', 'COOL_ELEMENT', 'COOL_VALVE', 'VENT'].includes(e.type))
         // if water heater is running leave heating element engaged
+        this.platform.logger.info('allSwitches', this.allSwitches)
         if (this.allSwitches.find(e => e.type === SwitchTypeEnum.WATER_VALVE && e.active)) {
-          offSwitches = this.switches.filter(e => e.type !== SwitchTypeEnum.HEAT_ELEMENT)
+          offSwitches = offSwitches.filter(e => e.type !== SwitchTypeEnum.HEAT_ELEMENT)
         }
         break
 
