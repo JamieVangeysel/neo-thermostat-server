@@ -29,12 +29,15 @@ async function handleGetValves(request: FastifyRequest, reply: FastifyReply) {
       }
     }
 
+    let result = valves.map(mapValve)
+    platform.logger.log('result from get', result)
+
     if (valves) {
-      response = reply.success(valves.map(mapValve), undefined, performance.now() - start)
+      response = reply.success(result, undefined, performance.now() - start)
     }
     response = reply.error('unknown server error', undefined, performance.now() - start)
   } catch (err) {
-    request.log.error({ err }, 'unknown error', undefined, performance.now() - start)
+    platform.logger.error({ err }, 'unknown error', undefined, performance.now() - start)
   }
 
   return response
