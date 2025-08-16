@@ -27,9 +27,12 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
+    "@logtail/pino": "^0.5.5",
     "cross-fetch": "^3.2.0",
     "express": "^4.21.2",
     "fastify": "^5.5.0",
-    "mongodb": "^3.7.4"
+    "fastify-plugin": "^5.0.1",
+    "mongodb": "^3.7.4",
+    "pino": "^9.9.0"
   }
 }
