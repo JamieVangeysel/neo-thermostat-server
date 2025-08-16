@@ -3,6 +3,7 @@ import { ConfigService, IConfigV3 } from './services/config'
 import { DatabaseService } from './services/database'
 import { Thermostat } from './services/thermostat'
 import { HttpListener } from './services/http-listener'
+import { API } from './services/api'
 
 export class Platform {
   readonly logger: Logger = new Logger()
@@ -12,7 +13,7 @@ export class Platform {
   private http: HttpListener = new HttpListener(this)
   public thermostats: Thermostat[] = []
 
-  // private api: API
+  private api: API
 
   constructor() {
     this.logger.debug(`Platform.constructor() -- start`)
@@ -34,10 +35,10 @@ export class Platform {
       } catch (err) {
         this.logger.error('Platform.init()', err.message)
       }
-      // this.api = new API(this)
-      // this.logger.debug(`Platform.init() -- initialized new API()`)
-      // await this.api.listen()
-      // this.logger.debug(`Platform.init() -- API is now listening.`)
+      this.api = new API(this, config.port + 1)
+      this.logger.debug(`Platform.init() -- initialized new API()`)
+      await this.api.listen()
+      this.logger.debug(`Platform.init() -- API is now listening.`)
       for (let thermostat of config.instances) {
         this.thermostats.push(new Thermostat(this, thermostat.name))
       }
