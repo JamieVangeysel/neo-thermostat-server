@@ -53,17 +53,21 @@ export class API {
         'OPTIONS',
         'POST',
         'PUT',
-        'DELETE',
+        'DELETE'
       ],
       origin: [
         'http://localhost',
         'http://localhost:4200',
-        'https://thermostat.jamievangeysel.be',
+        'https://thermostat.jamievangeysel.be'
       ],
       strictPreflight: true
     })
 
-    this.server.decorateRequest('locals', this.platform)
+    this.server.decorateRequest('locals', {
+      getter: () => {
+        return this.platform
+      }
+    })
 
     this.server.register(valvesController, { prefix: `/${routePrefix}/valves` })
 
