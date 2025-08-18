@@ -34,10 +34,11 @@ async function handleGetValves(request: FastifyRequest, reply: FastifyReply) {
 
     if (valves) {
       response = reply.success(result, undefined, performance.now() - start)
+    } else {
+      response = reply.error('unknown server error', undefined, performance.now() - start)
     }
-    response = reply.error('unknown server error', undefined, performance.now() - start)
   } catch (err) {
-    platform.logger.error({ err }, 'unknown error', undefined, performance.now() - start)
+    // platform.logger.error({ err }, 'unknown error', undefined, performance.now() - start)
   }
 
   return response
