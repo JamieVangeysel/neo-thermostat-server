@@ -6,6 +6,7 @@ import valvesController from './controllers/valvesController'
 // local plugins
 import { generate_request_id } from './plugins/request-id'
 import { Http2SecureServer, Http2ServerRequest, Http2ServerResponse } from 'http2'
+import { Thermostat } from '../thermostat'
 
 let fastifyConfig = {
   logger: process.env.NODE_ENV !== 'production'

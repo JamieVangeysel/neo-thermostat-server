@@ -1,10 +1,12 @@
 import { FastifyReply, FastifyRequest } from 'fastify'
 import { Platform } from '../../../platform'
 import { IRelaisSwitch } from '../../config'
+import { Thermostat } from '../../thermostat'
 
 export default async function valvesController(fastify: any) {
   fastify.get('', handleGetValves)
   fastify.get('/:id/active', handleGetValveActive)
+  fastify.put('/:id/active', handlePutValveActive)
   fastify.get('/:id/in-use', handleGetValveInUse)
 }
 
@@ -59,6 +61,32 @@ async function handleGetValveActive(request: FastifyRequest<{ Params: { id: numb
   }
 
   return response
+}
+
+async function handlePutValveActive(request: FastifyRequest<{ Params: { id: number }, Body: { value: boolean } }>, reply: FastifyReply) {
+  const platform: Platform = request.locals
+  const id = +request.params.id
+
+  const start = performance.now()
+  let response: FastifyReply
+
+  try {
+    const findThermostatInstance = platform.config.instances.find(e => e.switches.find(x => x.pinIndex === id))
+    const valve: IRelaisSwitch = findThermostatInstance.switches.find(e => e.pinIndex === id)
+
+    this.getThermostat(findThermostatInstance.name ?? 'default').WaterValveOn = request.body.value
+    response = reply.success()
+  } catch (err) {
+    // platform.logger.error({ err }, 'unknown error', undefined, performance.now() - start)
+    response = reply.error('unknown server error', undefined, performance.now() - start)
+  }
+
+  return response
+}
+
+function getThermostat(instance_name: string): Thermostat | undefined {
+  if (!instance_name) return undefined
+  return this.platform.thermostats.find(e => e.Name === instance_name.substring(1))
 }
 
 async function handleGetValveInUse(request: FastifyRequest<{ Params: { id: number } }>, reply: FastifyReply) {
