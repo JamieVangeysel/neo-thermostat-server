@@ -6,7 +6,6 @@ export class Relais extends EventEmitter {
   platform: Platform
   config: IRelaisV2
   switches: IRelaisSwitch[]
-  allSwitches: IRelaisSwitch[]
 
   constructor(platform: Platform, switches: IRelaisSwitch[]) {
     super()
@@ -15,7 +14,6 @@ export class Relais extends EventEmitter {
     this.config = platform.config.relais
     this.switches = switches
 
-    this.allSwitches = platform.config.instances.reduce((prev, curr) => prev.concat(curr), [])
     this.platform.logger.info('Relais all switches', this.allSwitches)
   }
 
@@ -39,8 +37,9 @@ export class Relais extends EventEmitter {
         onSwitches = []
         offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'HEAT_VALVE', 'COOL', 'COOL_ELEMENT', 'COOL_VALVE', 'VENT'].includes(e.type))
         // if water heater is running leave heating element engaged
-        if (this.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE && e.active)) {
-          offSwitches = this.switches.filter(e => e.type !== SwitchTypeEnum.HEAT_ELEMENT)
+        this.platform.logger.info('allSwitches', this.allSwitches)
+        if (this.allSwitches.find(e => (e.type === SwitchTypeEnum.WATER_VALVE || e.type === SwitchTypeEnum.HEAT_VALVE) && e.active)) {
+          offSwitches = offSwitches.filter(e => e.type !== SwitchTypeEnum.HEAT_ELEMENT)
         }
         break
 
@@ -53,7 +52,7 @@ export class Relais extends EventEmitter {
         onSwitches = this.switches.filter(e => ['COOL', 'COOL_ELEMENT', 'COOL_VALVE', 'VENT'].includes(e.type))
         offSwitches = this.switches.filter(e => ['HEAT', 'HEAT_ELEMENT', 'HEAT_VALVE'].includes(e.type))
         // if water heater is running leave heating element engaged
-        if (this.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE && e.active)) {
+        if (this.allSwitches.find(e => e.type === SwitchTypeEnum.WATER_VALVE && e.active)) {
           offSwitches = this.switches.filter(e => e.type !== SwitchTypeEnum.HEAT_ELEMENT)
         }
         break
@@ -163,5 +162,9 @@ export class Relais extends EventEmitter {
       }
     }
     this.platform.logger.debug(`Relais.setState() -- end`)
+  }
+
+  private get allSwitches(): IRelaisSwitch[] {
+    return this.platform.config.instances.reduce((prev, curr) => prev.concat(curr.switches), [])
   }
 }
