@@ -84,6 +84,8 @@ export class Thermostat {
       this.state.currentTemperature = +data.temperature
       this.state.currentRelativeHumidity = +data.humidity
       await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+
+      await this.evaluateChanges()
     })
 
     // set update interval fur current temperature to 1 minute
