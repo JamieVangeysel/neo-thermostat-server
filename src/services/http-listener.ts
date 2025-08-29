@@ -27,11 +27,11 @@ export class HttpListener {
 
       const regex = new RegExp('(?<instance>\/[a-zA-Z0-9-_]+)(?<url>\/.+)?').exec(req.url)
       const instance = regex?.groups?.instance
-      const url = regex?.groups?.url ?? ''
+      const url = regex?.groups?.url ?? '/'
       this.platform.logger.debug(`HttpListener.req() -- `, instance?.substring(1), url)
 
       switch (`${url}|${req.method}`) {
-        case '|GET':
+        case '/|GET':
           this.platform.logger.debug(`HttpListener.get() -- received request '/', returning current status.`)
           res.writeHead(200, {
             'Content-Type': 'application/json'
