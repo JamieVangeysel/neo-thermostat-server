@@ -3,6 +3,7 @@ import { Platform } from '../platform'
 import { FileSystem } from './filesystem'
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info'
 import { IThermostatInstanceConfig, SwitchTypeEnum } from './config'
+import { connect } from 'mqtt'
 
 export class Thermostat {
   private readonly platform: Platform
@@ -21,7 +22,7 @@ export class Thermostat {
 
     this.platform.logger.debug(`Thermostat.constructor() -- Constructed new instance of Thermostat()`)
     // get initial data from azure
-    this.getSensorData().then()
+    // this.getSensorData().then()
 
     this.relais = new Relais(this.platform, this.instance.switches)
 
@@ -64,11 +65,32 @@ export class Thermostat {
       this.platform.logger.debug(`Outside wind chill factor: `, this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed))
     })
 
-    // set update interval fur current temperature to 1 minute
-    setInterval(async () => {
-      await this.getSensorData()
+    const topic = this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? 'D6C1AD/sensor' : '03D3CE/sensor'
+
+    let client = connect('mqtt://localhost:1883')
+    client.on('connect', () => {
+      this.platform.logger.info('Connected to MQTT server')
+
+      client.subscribe([topic], () => {
+        this.platform.logger.debug(`Subscribe to topic '${topic}'`)
+      })
+    })
+
+    client.on('message', async (topic, payload) => {
+      this.platform.logger.debug('Received Message:', topic, payload.toString())
+
+      const data = JSON.parse(payload.toString())
+
+      this.state.currentTemperature = +data.temperature
+      this.state.currentRelativeHumidity = +data.humidity
       await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
-    }, 60000)
+    })
+
+    // set update interval fur current temperature to 1 minute
+    // setInterval(async () => {
+    //   await this.getSensorData()
+    //   await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+    // }, 60000)
   }
 
   async getSensorData() {
