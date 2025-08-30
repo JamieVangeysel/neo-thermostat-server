@@ -65,7 +65,12 @@ export class Thermostat {
       this.platform.logger.debug(`Outside wind chill factor: `, this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed))
     })
 
-    const topic = this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? 'D6C1AD/sensor' : '03D3CE/sensor'
+    // 03D3CE : Mathijs
+    // D6C1AD : Kitchen
+    // 3B2702 : Living
+
+
+    const topic = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
 
     let client = connect('mqtt://localhost:1883')
     client.on('connect', () => {
