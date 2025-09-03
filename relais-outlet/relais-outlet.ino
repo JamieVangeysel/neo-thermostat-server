@@ -95,8 +95,8 @@ void loop(){
             client.println("Content-type:application/json");
             client.println("Connection: close");
             client.println();
-            
-            // turns the GPIOs on and off
+
+            // if state is request loop over all pins and return state for each pin
             if (header.indexOf("GET /state") >= 0) {
               String response = "{\"status\": [";
               if (digitalRead(pins[0]) == HIGH) {
@@ -113,6 +113,7 @@ void loop(){
               client.println(response);
             }
 
+            // Handles for turning the GPIOs on and off
             for (int i = 0; i < pinCount; i++) {
               if (header.indexOf("GET /" + (i + 1) + "/on") >= 0) {
                 Serial.println("GPIO " + (i + 1) + " on");
@@ -130,38 +131,6 @@ void loop(){
                 }
               }
             }
-
-//             if (header.indexOf("GET /1/on") >= 0) {
-//               Serial.println("GPIO 1 on");
-//               digitalWrite(pins[0], LOW);
-//               client.println("{\"status\":true}");
-//             } else if (header.indexOf("GET /1/off") >= 0) {
-//               Serial.println("GPIO 1 off");
-//               digitalWrite(pins[0], HIGH);
-//               client.println("{\"status\":false}");
-//             } else if (header.indexOf("GET /1/state") >= 0) {
-//               if (digitalRead(pins[0]) == HIGH) {
-//                 client.println("{\"status\":true}");
-//               } else {
-//                 client.println("{\"status\":false}");
-//               }
-//             } else if (header.indexOf("GET /2/on") >= 0) {
-//               Serial.println("GPIO 2 on");
-//               digitalWrite(pins[1], LOW);
-//               client.println("{\"status\":true}");
-//             } else if (header.indexOf("GET /2/off") >= 0) {
-//               Serial.println("GPIO 2 off");
-//               digitalWrite(pins[1], HIGH);
-//               client.println("{\"status\":false}");
-//             } else if (header.indexOf("GET /2/state") >= 0) {
-//               if (digitalRead(pins[1]) == HIGH) {
-//                 client.println("{\"status\":true}");
-//               } else {
-//                 client.println("{\"status\":false}");
-//               }
-//             } else {
-//               client.println("{\"error\":\"Method Not Found\"}");
-//             }
             
             // The HTTP response ends with another blank line
             client.println();
