@@ -42,7 +42,7 @@ export class Relais extends EventEmitter {
       if (sw) {
         sw.active = payload.toString() === 'ON'
       } else {
-        this.platform.logger.info('Switch with pinIndex is not defined on this instance', i + 1)
+        this.platform.logger.info('Switch with pinIndex is not defined on this instance', pinIndex)
       }
 
 
