@@ -1,11 +1,13 @@
 import { Platform } from '../platform'
 import { EventEmitter } from 'events'
 import { IRelaisSwitch, IRelaisV2, SwitchStateEnum, SwitchTypeEnum } from './config'
+import { connect, MqttClient } from 'mqtt'
 
 export class Relais extends EventEmitter {
   platform: Platform
   config: IRelaisV2
   switches: IRelaisSwitch[]
+  client: MqttClient
 
   constructor(platform: Platform, switches: IRelaisSwitch[]) {
     super()
@@ -15,6 +17,37 @@ export class Relais extends EventEmitter {
     this.switches = switches
 
     this.platform.logger.info('Relais all switches', this.allSwitches)
+
+    this.client = connect('mqtt://localhost:1883')
+    this.listen()
+  }
+
+  listen() {
+    const topic = `${this.config.hostname}/relais/#`
+
+    this.client.on('connect', () => {
+      this.platform.logger.info('Connected to MQTT server')
+
+      this.client.subscribe([topic], () => {
+        this.platform.logger.debug(`Subscribe to topic '${topic}'`)
+      })
+    })
+
+    this.client.on('message', async (topic: string, payload: Buffer) => {
+      this.platform.logger.debug('Received Message:', topic, payload.toString())
+
+      const pinIndex: number = parseInt(topic.replace(`${this.config.hostname}/relais/`, ''))
+
+      const sw = this.switches.find(e => e.pinIndex === pinIndex)
+      if (sw) {
+        sw.active = payload.toString() === 'ON'
+      } else {
+        this.platform.logger.info('Switch with pinIndex is not defined on this instance', i + 1)
+      }
+
+
+      this.emit('update', this.switches)
+    })
   }
 
   /**
@@ -115,26 +148,26 @@ export class Relais extends EventEmitter {
 
   private async update() {
     this.platform.logger.debug(`Relais.update() -- start`)
-    this.platform.logger.debug(`Relais.update() -- get current state from relaisController`)
-    try {
-      const relaisResult = await fetch(`${this.config.secure ? 'https' : 'http'}://${this.config.hostname}/state`)
-      this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`)
-      const relaisStates: boolean[] = (await relaisResult.json()).status
-      this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates)
-
-      for (let i = 0; i < relaisStates.length; i++) {
-        const sw = this.switches.find(e => e.pinIndex === i + 1)
-        if (sw) {
-          sw.active = relaisStates[i]
-        } else {
-          this.platform.logger.info('Switch with pinIndex is not defined on this instance', i + 1)
-        }
-      }
-
-      this.emit('update', this.switches)
-    } catch (err) {
-      this.platform.logger.error(`Relais.update() -- get state failed!`)
-    }
+    this.platform.logger.debug(`Relais.update() -- this method is currently unused a we are using MQTT now.`)
+    // try {
+    //   const relaisResult = await fetch(`${this.config.secure ? 'https' : 'http'}://${this.config.hostname}/state`)
+    //   this.platform.logger.log(`Relais.update() -- save current relais status in function memory : { status: boolean[] }`)
+    //   const relaisStates: boolean[] = (await relaisResult.json()).status
+    //   this.platform.logger.log(`Relais.update() -- current relais status`, relaisStates)
+    //
+    //   for (let i = 0; i < relaisStates.length; i++) {
+    //     const sw = this.switches.find(e => e.pinIndex === i + 1)
+    //     if (sw) {
+    //       sw.active = relaisStates[i]
+    //     } else {
+    //       this.platform.logger.info('Switch with pinIndex is not defined on this instance', i + 1)
+    //     }
+    //   }
+    //
+    //   this.emit('update', this.switches)
+    // } catch (err) {
+    //   this.platform.logger.error(`Relais.update() -- get state failed!`)
+    // }
     this.platform.logger.debug(`Relais.update() -- end`)
   }
 
@@ -155,7 +188,12 @@ export class Relais extends EventEmitter {
         this.platform.logger.log(`Relais.setState() -- relais is currently OFF and needs to be switched ON`, relais.pinIndex)
       }
       try {
-        await fetch(`${this.config.secure ? 'https' : 'http'}://${this.config.hostname}/${relais.pinIndex}/${state}`)
+        if (this.client.connected) {
+          this.client.publish(`${this.config.hostname}/relais/${relais.pinIndex}`, state === SwitchStateEnum.ON ? 'ON' : 'OFF')
+        } else {
+          this.platform.logger.fatal('MQTT client is not connected, please try again.')
+        }
+        // await fetch(`${this.config.secure ? 'https' : 'http'}://${this.config.hostname}/${relais.pinIndex}/${state}`)
       } catch (err) {
         this.platform.logger.error(`Relais.setState() -- error`, err)
         this.emit('error', err)
