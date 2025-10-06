@@ -86,9 +86,18 @@ export class Thermostat {
 
       const data = JSON.parse(payload.toString())
 
+      const date = new Date()
+
       this.state.currentTemperature = +data.temperature
       this.state.currentRelativeHumidity = +data.humidity
-      await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+
+      await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${date.toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+
+      try {
+        await this.addHistoryEntry(date, +data.temperature)
+      } catch (err) {
+        this.platform.logger.error(`Could not add temperature into History, temp delta's might be faulty!`)
+      }
 
       await this.evaluateChanges()
     })
@@ -98,6 +107,33 @@ export class Thermostat {
     //   await this.getSensorData()
     //   await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
     // }, 60000)
+  }
+
+  async addHistoryEntry(date: Date, temperature: number) {
+    this.platform.logger.info(`Thermostat.addHistoryEntry() -- data is from ${date.toISOString().replace('T', ' ').substring(0, 19)}.`)
+    let save = false
+    if (this.temperatureHistory.length > 0) {
+      const lastHistoryEntry: {
+        date: Date,
+        temperature: number
+      } = this.temperatureHistory[this.temperatureHistory.length - 1]
+      if (lastHistoryEntry.date !== date) {
+        save = true
+      } else {
+        this.platform.logger.warn(`Thermostat.addHistoryEntry() -- returned stale data, skipping insert to history.`)
+      }
+    } else {
+      save = true
+    }
+
+    if (save) {
+      this.temperatureHistory.push({
+        date: date,
+        temperature: temperature
+      })
+      this.writeTemperatureHistoryAsync().then()
+      this.platform.logger.info('Thermostat.addHistoryEntry() -- saving temperature into temperatureHistory.')
+    }
   }
 
   async getSensorData() {
