@@ -45,7 +45,6 @@ export class Relais extends EventEmitter {
         this.platform.logger.info('Switch with pinIndex is not defined on this instance', pinIndex)
       }
 
-
       this.emit('update', this.switches)
     })
   }

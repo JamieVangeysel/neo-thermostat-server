@@ -2,7 +2,7 @@ import { Relais } from './relais'
 import { Platform } from '../platform'
 import { FileSystem } from './filesystem'
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info'
-import { IThermostatInstanceConfig, SwitchTypeEnum } from './config'
+import { isCoolType, isHeatType, IThermostatInstanceConfig, SwitchTypeEnum } from './config'
 import { connect } from 'mqtt'
 
 export class Thermostat {
@@ -252,7 +252,7 @@ export class Thermostat {
 
     this.platform.logger.debug('Thermostat.handleHeatState() -- targetHeatingCoolingState is HEAT, check if currently heating')
     this.platform.logger.debug('Thermostat.handleHeatState() -- config ', this.relais.switches)
-    if (this.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
+    if (this.relais.switches.some(e => isCoolType(e.type) && e.active)) {
       this.platform.logger.debug('system state is heating, turn off COOL')
       this.relais.activate(SwitchTypeEnum.NONE)
     }
@@ -260,7 +260,7 @@ export class Thermostat {
     if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
       this.platform.logger.debug('Thermostat.handleHeatState() -- The system is currently heating')
       // check if all relais are active
-      if (this.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
+      if (this.relais.switches.some(e => isHeatType(e.type) && !e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- HEAT is active but some relais are not activated!')
         this.relais.activate(SwitchTypeEnum.HEAT)
       }
@@ -282,12 +282,12 @@ export class Thermostat {
     else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
       this.platform.logger.debug('Thermostat.handleHeatState() -- The system is currently off')
       // check if all relais are inactive
-      if (this.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && e.active)) {
+      if (this.relais.switches.some(e => isHeatType(e.type) && e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- NONE is active but some relais are activated!')
         this.relais.activate(SwitchTypeEnum.NONE)
       }
-      // check if temperature has drifted below an accepteble temperature.
-      this.platform.logger.debug('Thermostat.handleHeatState() -- Check if temperature has driftped below an acceptable temperature range')
+      // check if temperature has drifted below an acceptable temperature.
+      this.platform.logger.debug('Thermostat.handleHeatState() -- Check if temperature has drifted below an acceptable temperature range')
       if (currentTemp <= this.thresholds.heatingMin) {
         // tslint:disable-next-line: max-line-length
         this.platform.logger.debug('Thermostat.handleHeatState() -- turn on heating since min target has been reached, don\'t change target')
