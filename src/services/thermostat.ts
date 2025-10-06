@@ -70,7 +70,7 @@ export class Thermostat {
     // 3B2702 : Living
 
 
-    const topic = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
+    const topic: string = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
 
     let client = connect('mqtt://localhost:1883')
     client.on('connect', () => {
@@ -109,9 +109,9 @@ export class Thermostat {
     // }, 60000)
   }
 
-  async addHistoryEntry(date: Date, temperature: number) {
+  async addHistoryEntry(date: Date, temperature: number): Promise<void> {
     this.platform.logger.info(`Thermostat.addHistoryEntry() -- data is from ${date.toISOString().replace('T', ' ').substring(0, 19)}.`)
-    let save = false
+    let save: boolean = false
     if (this.temperatureHistory.length > 0) {
       const lastHistoryEntry: {
         date: Date,
@@ -131,8 +131,10 @@ export class Thermostat {
         date: date,
         temperature: temperature
       })
-      this.writeTemperatureHistoryAsync().then()
       this.platform.logger.info('Thermostat.addHistoryEntry() -- saving temperature into temperatureHistory.')
+      this.writeTemperatureHistoryAsync().then(() => {
+        this.platform.logger.info('Thermostat.addHistoryEntry() -- saved successfully.')
+      })
     }
   }
 
