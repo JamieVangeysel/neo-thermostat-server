@@ -233,6 +233,14 @@ export enum SwitchTypeEnum {
   NONE = 'NONE' // dummy entry to be able to deactivate all relais switches
 }
 
+export function isHeatType (value: SwitchTypeEnum): boolean {
+  return [SwitchTypeEnum.HEAT, SwitchTypeEnum.HEAT_ELEMENT, SwitchTypeEnum.HEAT_VALVE].includes(value)
+}
+
+export function isCoolType (value: SwitchTypeEnum): boolean {
+  return [SwitchTypeEnum.COOL, SwitchTypeEnum.COOL_ELEMENT, SwitchTypeEnum.COOL_VALVE].includes(value)
+}
+
 export enum SwitchStateEnum {
   ON = 'on',
   OFF = 'off'

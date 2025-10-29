@@ -2,7 +2,7 @@ import { Relais } from './relais'
 import { Platform } from '../platform'
 import { FileSystem } from './filesystem'
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info'
-import { IThermostatInstanceConfig, SwitchTypeEnum } from './config'
+import { isCoolType, isHeatType, IThermostatInstanceConfig, SwitchTypeEnum } from './config'
 import { connect } from 'mqtt'
 
 export class Thermostat {
@@ -70,7 +70,7 @@ export class Thermostat {
     // 3B2702 : Living
 
 
-    const topic = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
+    const topic: string = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
 
     let client = connect('mqtt://192.168.0.207:1883')
     client.on('connect', () => {
@@ -86,9 +86,18 @@ export class Thermostat {
 
       const data = JSON.parse(payload.toString())
 
+      const date = new Date()
+
       this.state.currentTemperature = +data.temperature
       this.state.currentRelativeHumidity = +data.humidity
-      await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+
+      await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${date.toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+
+      try {
+        await this.addHistoryEntry(date, +data.temperature)
+      } catch (err) {
+        this.platform.logger.error(`Could not add temperature into History, temp delta's might be faulty!`)
+      }
 
       await this.evaluateChanges()
     })
@@ -98,6 +107,35 @@ export class Thermostat {
     //   await this.getSensorData()
     //   await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
     // }, 60000)
+  }
+
+  async addHistoryEntry(date: Date, temperature: number): Promise<void> {
+    this.platform.logger.info(`Thermostat.addHistoryEntry() -- data is from ${date.toISOString().replace('T', ' ').substring(0, 19)}.`)
+    let save: boolean = false
+    if (this.temperatureHistory.length > 0) {
+      const lastHistoryEntry: {
+        date: Date,
+        temperature: number
+      } = this.temperatureHistory[this.temperatureHistory.length - 1]
+      if (lastHistoryEntry.date !== date) {
+        save = true
+      } else {
+        this.platform.logger.warn(`Thermostat.addHistoryEntry() -- returned stale data, skipping insert to history.`)
+      }
+    } else {
+      save = true
+    }
+
+    if (save) {
+      this.temperatureHistory.push({
+        date: date,
+        temperature: temperature
+      })
+      this.platform.logger.info('Thermostat.addHistoryEntry() -- saving temperature into temperatureHistory.')
+      this.writeTemperatureHistoryAsync().then(() => {
+        this.platform.logger.info('Thermostat.addHistoryEntry() -- saved successfully.')
+      })
+    }
   }
 
   async getSensorData() {
@@ -252,7 +290,7 @@ export class Thermostat {
 
     this.platform.logger.debug('Thermostat.handleHeatState() -- targetHeatingCoolingState is HEAT, check if currently heating')
     this.platform.logger.debug('Thermostat.handleHeatState() -- config ', this.relais.switches)
-    if (this.relais.switches.some(e => e.type === SwitchTypeEnum.COOL && e.active)) {
+    if (this.relais.switches.some(e => isCoolType(e.type) && e.active)) {
       this.platform.logger.debug('system state is heating, turn off COOL')
       this.relais.activate(SwitchTypeEnum.NONE)
     }
@@ -260,7 +298,7 @@ export class Thermostat {
     if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
       this.platform.logger.debug('Thermostat.handleHeatState() -- The system is currently heating')
       // check if all relais are active
-      if (this.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && !e.active)) {
+      if (this.relais.switches.some(e => isHeatType(e.type) && !e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- HEAT is active but some relais are not activated!')
         this.relais.activate(SwitchTypeEnum.HEAT)
       }
@@ -282,12 +320,12 @@ export class Thermostat {
     else if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.OFF) {
       this.platform.logger.debug('Thermostat.handleHeatState() -- The system is currently off')
       // check if all relais are inactive
-      if (this.relais.switches.some(e => e.type === SwitchTypeEnum.HEAT && e.active)) {
+      if (this.relais.switches.some(e => isHeatType(e.type) && e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- NONE is active but some relais are activated!')
         this.relais.activate(SwitchTypeEnum.NONE)
       }
-      // check if temperature has drifted below an accepteble temperature.
-      this.platform.logger.debug('Thermostat.handleHeatState() -- Check if temperature has driftped below an acceptable temperature range')
+      // check if temperature has drifted below an acceptable temperature.
+      this.platform.logger.debug('Thermostat.handleHeatState() -- Check if temperature has drifted below an acceptable temperature range')
       if (currentTemp <= this.thresholds.heatingMin) {
         // tslint:disable-next-line: max-line-length
         this.platform.logger.debug('Thermostat.handleHeatState() -- turn on heating since min target has been reached, don\'t change target')
