@@ -72,7 +72,7 @@ export class Thermostat {
 
     const topic = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
 
-    let client = connect('mqtt://localhost:1883')
+    let client = connect('mqtt://192.168.0.207:1883')
     client.on('connect', () => {
       this.platform.logger.info('Connected to MQTT server')
 
@@ -586,26 +586,26 @@ export class Thermostat {
     this.evaluateChanges()
   }
 
-  get HeatElementOn(): boolean {
-    return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT)?.active ?? null
-  }
-
-  get HeatValveOn(): boolean {
-    return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_VALVE)?.active ?? null
-  }
-
-  get WaterValveOn(): boolean {
-    this.platform.logger.debug(`WaterValveOn() -- `, this.relais.switches, this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE))
-    return this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE)?.active ?? null
-  }
-
-  set WaterValveOn(value: boolean) {
-    this.platform.logger.debug('Set target state WaterValveOn to: ' + value)
-    if (value)
-      this.relais.activate(SwitchTypeEnum.WATER_VALVE)
-    else
-      this.relais.deactivate(SwitchTypeEnum.WATER_VALVE)
-  }
+  // get HeatElementOn(): boolean {
+  //   return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT)?.active ?? null
+  // }
+  //
+  // get HeatValveOn(): boolean {
+  //   return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_VALVE)?.active ?? null
+  // }
+  //
+  // get WaterValveOn(): boolean {
+  //   this.platform.logger.debug(`WaterValveOn() -- `, this.relais.switches, this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE))
+  //   return this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE)?.active ?? null
+  // }
+  //
+  // set WaterValveOn(value: boolean) {
+  //   this.platform.logger.debug('Set target state WaterValveOn to: ' + value)
+  //   if (value)
+  //     this.relais.activate(SwitchTypeEnum.WATER_VALVE)
+  //   else
+  //     this.relais.deactivate(SwitchTypeEnum.WATER_VALVE)
+  // }
 }
 
 export interface ThermostatState {

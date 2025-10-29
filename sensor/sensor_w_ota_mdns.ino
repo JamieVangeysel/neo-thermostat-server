@@ -162,7 +162,7 @@ void setLightState() {
 void callback(char* p_topic, byte* p_payload, unsigned int p_length) {
   // concat the payload into a string
   String payload;
-  for (uint8_t i = 0; i < p_length; i++) {
+  for (uint8_t i = 0; i < p_length; i++) { m
     payload.concat((char)p_payload[i]);
   }
 
