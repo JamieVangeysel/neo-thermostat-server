@@ -18,7 +18,7 @@ export class Relais extends EventEmitter {
 
     this.platform.logger.info('Relais all switches', this.allSwitches)
 
-    this.client = connect('mqtt://localhost:1883')
+    this.client = connect('mqtt://192.168.0.207:1883')
     this.listen()
   }
 
