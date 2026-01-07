@@ -31,11 +31,11 @@ export class Thermostat {
     })
 
     // check if logging file exists, if not create csv file
-    this.fs.exists('data-log.csv').then(async (logExists) => {
+    this.fs.exists(`data-log-${this.instance_name}.csv`).then(async (logExists) => {
       if (!logExists) {
         // if the file does not exist create file with appropriate csv headers
-        await this.fs.writeFile('data-log.csv', Buffer.from('date,state,target-state,temperature,target-temperature,outside-temperature,heat-index\n'))
-        await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+        await this.fs.writeFile(`data-log-${this.instance_name}.csv`, Buffer.from('date,state,target-state,temperature,target-temperature,outside-temperature,heat-index\n'))
+        await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
       }
     }, rej => {
       this.platform.logger.error(rej)
@@ -91,7 +91,7 @@ export class Thermostat {
       this.state.currentTemperature = +data.temperature
       this.state.currentRelativeHumidity = +data.humidity
 
-      await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${date.toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+      await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${date.toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
 
       try {
         await this.addHistoryEntry(date, +data.temperature)
@@ -105,7 +105,7 @@ export class Thermostat {
     // set update interval fur current temperature to 1 minute
     // setInterval(async () => {
     //   await this.getSensorData()
-    //   await this.fs.writeAppendFile('data-log.csv', Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+    //   await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
     // }, 60000)
   }
 
