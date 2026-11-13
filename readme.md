@@ -11,10 +11,10 @@ This software can switch real heating equipment. Treat it as a prototype until t
 - `relais-outlet/` — an ESP8266 relay/web-server sketch and a detached HTML response fragment.
 - `index.html` — a local, experimental CO2/air-quality chart; it requests a development endpoint.
 - `testing.csv` — sample/simulation data, not live telemetry.
-- `index.min.js` — checked-in minified bundle, but it is currently stale compared with a fresh build from `src/index.ts`; rebuild and review it before deploying source changes.
+- `index.min.js` — checked-in minified bundle generated from `src/index.ts`; rebuild and review it after source changes.
 - `config.json`, `data-log*.csv`, `temperature-history.json`, and `airQualityLog.csv` — runtime/local data. These are intentionally ignored by Git and must not be committed.
 
-The root README historically described a planned setup of two thermostats, three valves, and a shared heat element. That is a design note, not proof that the current code/configuration safely implements that layout.
+The original design notes described a shared heat element and hot-water relay. The current installation has changed: the Arduino now manages the shared heating element automatically from heat demand, and hot-water relay 4 is retired. The thermostat must not command `HEAT_ELEMENT` or `WATER_VALVE`.
 
 ## Architecture and data flow
 
@@ -22,7 +22,7 @@ The root README historically described a planned setup of two thermostats, three
 2. `ConfigService` reads `./config.json`, accepts version 2 or 3, and upgrades a version-2 object to version 3 in memory.
 3. Each configured thermostat creates a `Relais` MQTT client and subscribes to a temperature topic. Current topic selection is hard-coded around one sensor ID; it is not a general mapping from configured sensor IDs to MQTT topics.
 4. Temperature messages update in-memory state, append a CSV row, update a JSON history file, and call `evaluateChanges()`.
-5. `evaluateChanges()` uses configured target/mode and relay state to decide whether to publish relay commands. Relay command publication is MQTT to `relais.hostname/relais/<pin>`; relay status is expected back on `relais.hostname/relais/#`.
+5. `evaluateChanges()` uses a fresh validated room-air temperature, configured target/mode, and relay state to decide whether to publish relay commands. Commands go to `relais.hostname/relais/<pin>` at QoS 1; incoming ON/OFF messages are the available MQTT-reported relay state. A broker PUBACK is not proof of physical relay actuation.
 6. `WeatherInfoService` optionally polls OpenWeatherMap every five minutes. The coordinates are currently hard-coded in `src/services/weather-info.ts`.
 7. The plain Node HTTP listener binds to the configured host/port. A separate Fastify server binds to `0.0.0.0` on `port + 1`.
 
@@ -30,7 +30,7 @@ The thermostat MQTT connection currently targets `mqtt://localhost:1883` without
 
 ## Requirements and local commands
 
-- Node.js and npm (the checked-in package metadata declares TypeScript 4.9 and Fastify 5).
+- Node.js and npm (Node 22 is required by the built-in test command; package metadata declares TypeScript 4.9 and Fastify 5).
 - An MQTT broker on the same host, listening on port 1883, with topics/payloads matching the code and firmware.
 - A local `config.json` with valid sensor IDs, switch assignments, target state, and relay topic prefix. Keep credentials and device identifiers out of Git.
 - Optional: OpenWeatherMap key and MongoDB settings, subject to the limitations below.
@@ -39,11 +39,12 @@ Install dependencies and build the service bundle:
 
 ```sh
 npm ci
+npm test
 npm run build
 node index.min.js
 ```
 
-`npm run build` overwrites the tracked `index.min.js`. Review that generated diff before committing. There is currently no test, lint, or start script. The project has no checked-in Arduino build configuration, so the sketches have not been shown to compile as part of the Node build.
+`npm run build` overwrites the tracked `index.min.js`. Review that generated diff before committing. There is no lint or start script. The project has no checked-in Arduino build configuration, so the sketches have not been shown to compile as part of the Node build.
 
 Development mode makes the Fastify route prefix `/test`; production uses `/v1` unless `APP_VERSION` is set. The Fastify listener is on port `config.port + 1` (default 8081 when `config.port` is 8080). The plain HTTP listener uses `config.hostname` and `config.port`.
 
@@ -58,13 +59,14 @@ Development mode makes the Fastify route prefix `/test`; production uses `/v1` u
 - `thermostatState`: current/target temperature, current/target mode, humidity, and display units
 - `mongoDB` is typed as optional, but the current database service dereferences it during construction. A fresh version-3 configuration without `mongoDB` can therefore fail during startup; fix this before relying on clean installs.
 
-Switch types in `src/services/config.ts` include `HEAT`, `HEAT_ELEMENT`, `HEAT_VALVE`, `WATER_VALVE`, `COOL`, `COOL_ELEMENT`, `COOL_VALVE`, and `VENT`. Carefully verify which physical output each `pinIndex` controls before enabling the service. Do not assume the stored `active` value matches the real relay state after boot or a communication failure.
+Switch types in `src/services/config.ts` include `HEAT`, `HEAT_VALVE`, `COOL`, `COOL_ELEMENT`, `COOL_VALVE`, and `VENT`. `HEAT_ELEMENT` remains only for legacy configuration; the Arduino controls it. `WATER_VALVE` is deprecated and not controlled or listed by the thermostat. Carefully verify which zone output each `pinIndex` controls before enabling the service. MQTT-reported state may be `UNKNOWN` until a status message arrives.
 
 ## HTTP endpoints
 
 The legacy plain HTTP listener exposes per-instance routes (for example, `/<instance>/...`):
 
-- `GET /<instance>/` — thermostat state.
+- `GET /<instance>/` — thermostat state plus `errorStatus` (`null` when healthy).
+- `GET /<instance>/error-status` — fault reason/time, last accepted sample and its age, requested OFF pins, broker publish failures, and last MQTT-reported relay states (`ON`, `OFF`, or `UNKNOWN`).
 - `GET /<instance>/current-temperature` — returns the calculated heat-index value, not raw dry-bulb temperature.
 - `GET /<instance>/current-relative-humidity`
 - `GET` and `POST /<instance>/target-temperature`; POST body is `{"value": <number>}`.
@@ -90,18 +92,18 @@ Do not flash these sketches to equipment without first removing secrets, fixing 
 
 Highest priority:
 
-1. **Remove and rotate embedded secrets.** The repository contains network/MQTT/OTA credentials in firmware and a credential in the relay service. Move secrets to ignored configuration or a secrets manager. If any value has ever been used on a real network, rotate it; if the repository was public, assume it was exposed and consider removing it from Git history.
-2. **Make heating control fail-safe.** Add a sensor freshness watchdog, validated input/range checks, safe output state on boot/reconnect, explicit command acknowledgements and timeouts, independent temperature limits, and a documented manual cutoff. Test relay interlocks and shared heat-element logic before connecting the plant.
-3. **Use a valid control temperature.** `evaluateChanges()` controls heating/cooling with `HeatIndex`. The heat-index equation is intended for hot-weather apparent-temperature estimates and is not suitable as the room thermostat variable across ordinary indoor temperatures. Use validated room/operative temperature; handle humidity separately and validate any comfort model.
+1. **Credential handling.** Local/example credentials in source are not the production credentials; production secrets are managed separately. Do not copy deployment secrets into source, docs, logs, or this repository.
+2. **Fail-safe sensor/relay behavior (implemented in source).** MQTT input is parsed and range/timestamp checked; automatic control is inhibited until a fresh valid sample arrives and a 15-minute watchdog timeout shuts down this zone's thermostat-controlled HVAC outputs. It reports error status at `/<instance>/error-status`. OFF commands are retried at most three times only after broker publish failures. QoS 1 confirms broker receipt, not physical actuation; status remains MQTT-reported/unknown because the relay controller has no command acknowledgement.
+3. **Comfort control uses apparent temperature.** `evaluateChanges()` continues to use `HeatIndex` as the comfort/control value, as intended for this installation. Raw room temperature is validated for sensor safety and exposed separately; it does not replace the heat-index target.
 4. **Fix lifecycle and configuration startup.** The async `initialized` event handler is not awaited by `EventEmitter`; `Platform` also starts initialization from its constructor without returning/awaiting it. Validate/migrate configuration before creating services, handle missing MongoDB cleanly, await all startup steps, and implement graceful shutdown for HTTP/MQTT/database connections.
 5. **Validate the HTTP API.** Reject missing/unknown instances and malformed/out-of-range values with 4xx responses. Add authentication and network binding controls. Several API handlers assume undefined platform/thermostat properties; the Fastify reply helper plugin is not registered, and only the valves controller is currently attached.
 
 Further improvements:
 
-- Await MQTT publish acknowledgements; do not use un-awaited `forEach(async ...)` for relay transitions. Distinguish desired and confirmed physical state, serialize transitions, enforce heat/cool mutual exclusion, and make shared pump/element behavior explicit across zones.
+- The service awaits QoS 1 broker publish callbacks and serializes relay transitions, but cannot verify physical actuation. A separate device-side acknowledgement protocol is still needed if hardware confirmation becomes available. The Arduino, not this service, owns the shared heating element.
 - Catch malformed MQTT JSON and sensor/API errors; validate finite temperature/humidity values, timestamps, and payload schema. Detect stale, duplicated, or out-of-order samples.
 - Fix history handling: `Date` object identity is used for equality, persisted history is not loaded on startup, API timestamp parsing is inconsistent, and min/max over an empty window yields infinities. Use parsed epoch timestamps, bounded storage, and tests around empty windows/restarts.
-- Add automated tests for hysteresis boundaries, heat/cool interlocks, relay failures, stale data, and multi-zone shared equipment. Add a supported TypeScript/Fastify version combination; `tsconfig` currently uses TypeScript 4.9 while installed Fastify 5 declarations require newer TypeScript syntax, so `npx tsc --noEmit` fails in dependency declarations. The esbuild bundle can still build.
+- Extend automated tests to cover full thermostat/HTTP fault integration, hysteresis boundaries, and device-status behavior. `npm test` currently covers payload validation, stale watchdog logic, relay plans, and broker publish failures. Add a supported TypeScript/Fastify version combination; `tsconfig` uses TypeScript 4.9 while installed Fastify 5 declarations require newer syntax, so `npx tsc --noEmit` currently fails in dependency declarations. The esbuild bundle can still build.
 - Remove unused/obsolete dependencies and unfinished files only after checking deployment use. In particular, `express`, `pino`, `@logtail/pino`, and the MSSQL plugin are not part of the active startup path; the MSSQL plugin imports `mssql`, which is not declared in `package.json`.
 - Add health/readiness reporting, structured logs without secrets, bounded/rotated CSV logs, and explicit deployment/service-manager instructions.
 

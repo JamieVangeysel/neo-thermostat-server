@@ -18,7 +18,7 @@ async function handleGetValves(request: FastifyRequest, reply: FastifyReply) {
 
   try {
     const allSwitches: IRelaisSwitch[] = platform.config.instances.reduce((prev, curr) => prev.concat(curr.switches), [])
-    const valves: IRelaisSwitch[] = allSwitches.filter(e => e.type.indexOf('VALVE') > -1)
+    const valves: IRelaisSwitch[] = allSwitches.filter(e => ['HEAT_VALVE', 'COOL_VALVE'].includes(e.type))
 
     function mapValve(valve: IRelaisSwitch) {
       return {

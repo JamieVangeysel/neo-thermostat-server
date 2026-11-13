@@ -31,13 +31,32 @@ export class HttpListener {
       this.platform.logger.debug(`HttpListener.req() -- `, instance?.substring(1), url)
 
       switch (`${url}|${req.method}`) {
-        case '/|GET':
+        case '/|GET': {
           this.platform.logger.debug(`HttpListener.get() -- received request '/', returning current status.`)
+          const thermostat = this.getThermostat(instance)
+          if (!thermostat) {
+            res.writeHead(404, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'thermostat instance not found' }))
+            break
+          }
           res.writeHead(200, {
             'Content-Type': 'application/json'
           })
-          res.end(JSON.stringify(valueResponse(this.getThermostat(instance).State)))
+          res.end(JSON.stringify(valueResponse({ ...thermostat.State, errorStatus: thermostat.ErrorStatus })))
           break
+        }
+
+        case '/error-status|GET': {
+          const thermostat = this.getThermostat(instance)
+          if (!thermostat) {
+            res.writeHead(404, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'thermostat instance not found' }))
+            break
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(valueResponse(thermostat.ErrorStatus)))
+          break
+        }
 
         case '/current-temperature|GET':
           this.platform.logger.debug(`HttpListener.get() -- received request '/current-temperature', returning current temperature.`)
@@ -206,7 +225,7 @@ export class HttpListener {
     this.platform.logger.debug(`HttpListener.configure() -- end`)
   }
 
-  getThermostat(instance_name: string): Thermostat | undefined {
+  getThermostat(instance_name?: string): Thermostat | undefined {
     if (!instance_name) return undefined
     return this.platform.thermostats.find(e => e.Name === instance_name.substring(1))
   }

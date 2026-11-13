@@ -224,7 +224,9 @@ export interface IRelaisSwitch {
 export enum SwitchTypeEnum {
   HEAT = 'HEAT',
   HEAT_VALVE = 'HEAT_VALVE',
+  /** @deprecated The Arduino now manages this shared output from heat demand. */
   HEAT_ELEMENT = 'HEAT_ELEMENT',
+  /** @deprecated Hot-water relay control has been retired. */
   WATER_VALVE = 'WATER_VALVE',
   COOL = 'COOL',
   COOL_ELEMENT = 'COOL_ELEMENT',
@@ -234,7 +236,7 @@ export enum SwitchTypeEnum {
 }
 
 export function isHeatType (value: SwitchTypeEnum): boolean {
-  return [SwitchTypeEnum.HEAT, SwitchTypeEnum.HEAT_ELEMENT, SwitchTypeEnum.HEAT_VALVE].includes(value)
+  return [SwitchTypeEnum.HEAT, SwitchTypeEnum.HEAT_VALVE].includes(value)
 }
 
 export function isCoolType (value: SwitchTypeEnum): boolean {

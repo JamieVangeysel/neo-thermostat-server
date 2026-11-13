@@ -4,7 +4,8 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "build": "esbuild ./src/index.ts --bundle --platform=node --minify --packages=external --outfile=index.min.js"
+    "build": "esbuild ./src/index.ts --bundle --platform=node --minify --packages=external --outfile=index.min.js",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs"
   },
   "repository": {
     "type": "git",

@@ -1,20 +1,20 @@
 # Neo Thermostat Server: implementation roadmap
 
-Status: proposal only. No production source, configuration, bundle, or deployment was changed for this roadmap.
+Status: Recommendation 2 has been applied to source and the generated bundle. This was not deployed and no live broker or relay was contacted. Recommendations 4, 5, and 6 remain proposals.
 
-This plan turns recommendations 2, 4, 5, and 6 into implementation slices, with proposed source changes and acceptance gates. Code examples are intended as concrete patch material, not code already present in the repository. Implement each feature only after approval, writing and running the tests first.
+This document records the original implementation roadmap and the completed Recommendation 2 slice; Recommendations 4, 5, and 6 remain proposed. The Recommendation 2 section below supersedes its earlier code sketches. Future changes should use tests-first and be reviewed before deployment.
 
 Assumptions and constraints:
 
 - Production credentials are managed separately from repository credentials. This plan does not rotate or reproduce any credentials; production values must continue to come from the deployment's secret mechanism.
 - The app controls real heating/cooling equipment. Software cannot guarantee a safe physical state if a relay, broker, power supply, or actuator fails. Preserve independent plant protections and a manual cutoff.
-- Current room/switch configuration and the correct safe relay state for heating, cooling, hot water, and shared pumps/elements must be confirmed against the installed plant before enabling automatic fault actions.
+- The Arduino now manages the shared heating element from zone heat demand; the thermostat must not command `HEAT_ELEMENT`. Hot-water relay 4 is retired; `WATER_VALVE` is deprecated and must not be controlled. On sensor fault, switch OFF only this thermostat zone's configured HVAC outputs.
 - The current firmware files do not define the live production MQTT contract. Confirm the production sensor and relay message formats before changing them. Some proposed acknowledgements require matching firmware/controller changes.
 
 ## Current implementation facts used by this plan
 
-- `src/services/thermostat.ts` accepts MQTT data through an unguarded `JSON.parse`, treats local receipt as fresh indefinitely, controls from `HeatIndex`, and uses a fixed temperature deadband.
-- `src/services/relais.ts` publishes ON/OFF without awaiting MQTT's publish callback or a physical-state acknowledgement. `activate()` returns before its un-awaited `forEach(async ...)` operations finish. Its MQTT connection details are hard-coded, not part of this plan.
+- `src/services/thermostat.ts` now validates MQTT temperature/humidity, tracks sample freshness, inhibits control until an accepted sample, uses room temperature for control, and reports sensor/relay errors.
+- `src/services/relais.ts` now serializes transition publishes and awaits QoS 1 broker callbacks. This proves broker acceptance only, not physical state. MQTT-reported relay state is shown as ON/OFF/UNKNOWN; there is no device command acknowledgement.
 - `src/platform.ts` starts asynchronous initialization in the constructor and attaches an async `initialized` event handler. `EventEmitter.emit()` does not await that handler.
 - `ConfigService.initialize()` emits a config rather than returning it. A v2 config is upgraded only in memory.
 - `DatabaseService` dereferences `config.mongoDB` even though `IConfigV3.mongoDB` is optional. The default v3 config omits it.
@@ -28,10 +28,10 @@ Do not combine all four changes in one release.
 1. Foundation: align the compiler/test runner and add isolated unit-test infrastructure. No hardware connections in tests.
 2. Recommendation 4: deterministic startup/config handling and optional database behavior. Run in a non-production copy of config with MQTT blocked/mocked.
 3. Recommendation 5: require authentication on both HTTP servers and make listener binding explicit. Deploy only after the calling client/reverse-proxy path is ready to send credentials.
-4. Recommendation 2: sensor validity/freshness, relay acknowledgement, serialized interlocks, fault latch, and the plant-specific fail-safe matrix. Bench-test against a simulator first, then supervised hardware testing.
+4. Recommendation 2 is implemented in source. Run the offline tests/build, then bench-test against a simulator before any supervised hardware testing.
 5. Recommendation 6: telemetry and comfort schedules in read-only/shadow mode first; only then allow scheduled setpoints to feed the existing controller.
 
-At each gate: review the diff, run unit tests and the bundle build to a temporary output, back up the deployment config, record the previous build/config version, and require explicit approval before touching a live service or relay. Do not deploy `index.min.js` from a source change until it has been rebuilt and reviewed; the checked-in bundle was found stale relative to a fresh build.
+At each gate: review the diff, run unit tests and the bundle build to a temporary output, back up the deployment config, record the previous build/config version, and require explicit approval before touching a live service or relay. `index.min.js` was rebuilt for Recommendation 2; rebuild and review it again after future source changes.
 
 ## Foundation: tests and compiler compatibility
 
@@ -55,124 +55,19 @@ Proposed `package.json` script/dev dependencies (pin versions through the lockfi
 
 Use exact versions rather than literal angle-bracket values in the eventual package manifest. Run tests with fake clocks and fake relay adapters; importing tests must never start `Platform`, open a broker connection, or listen on a network port.
 
-## Recommendation 2: fail safe on bad/stale sensors and relay failures
+## Recommendation 2: fail safe on bad/stale sensors and relay failures — applied
 
-### Desired behavior
+Implemented in `src/services/sensor-safety.ts`, `src/services/thermostat.ts`, `src/services/relais.ts`, `src/services/http-listener.ts`, and the relay/config type definitions. The generated bundle is refreshed as part of this change; no service was started and no live broker/relay was contacted.
 
-- Reject malformed, non-finite, out-of-range, future-dated, too-old, and replayed sensor samples before updating state or making a control decision.
-- Base the control decision on validated room temperature, not heat index. Keep humidity as a separate observation for comfort/dew-point guidance.
-- On stale/lost sensor or relay acknowledgement timeout, set a latched `fault` state, stop normal automatic control, publish the approved plant-specific fail-safe relay state, and report whether that output was confirmed. Do not claim an output is OFF merely because a publish call returned.
-- Serialize relay transitions. For mode changes, command incompatible outputs OFF and confirm them before enabling the new mode. Keep shared heat sources/pumps under one coordinator so one zone cannot switch off an element another zone still needs.
-- Do not clear a fault automatically on reconnection. Require fresh valid samples, verified relay state, and an explicit reset policy.
+- Validate JSON payloads, finite temperature (`-20..60 C`) and RH (`0..100%`), source timestamps, clock skew, sample age, retained messages without a timestamp, and non-advancing timestamps before updating thermostat state.
+- Default sample timeout is 15 minutes; a first valid sample is required before automatic control can act. Invalid samples trigger the same zone shutdown immediately. Sensor faults clear when a fresh valid sample arrives.
+- Control continues to use `HeatIndex` as the user's intended apparent-temperature/comfort value. Raw sensor temperature is validated for data safety but does not replace the control variable.
+- On a fault, send non-retained QoS 1 OFF commands to this zone's `HEAT`, `HEAT_VALVE`, `COOL`, `COOL_VALVE`, `COOL_ELEMENT`, and `VENT` outputs. Do not command `HEAT_ELEMENT` (Arduino-owned) or `WATER_VALVE` (retired). Retry broker-level failures at most three attempts, at 30-second intervals.
+- Relay transition commands are serialized. Broker publish errors and offline/subscription failures are reported. The service waits for QoS 1 broker PUBACK but cannot verify physical actuation. MQTT status is exposed as ON/OFF/UNKNOWN and must not be described as a device-correlated acknowledgement.
+- `GET /<instance>/` includes `errorStatus`; `GET /<instance>/error-status` returns the detailed fault and latest MQTT-reported relay states.
+- `npm test` covers parsing/range/freshness, startup gating, stale retained payloads, zone-only shutdown planning, deprecated output exclusion, continued OFF attempts after failures, and broker publish callbacks. These are offline unit tests, not hardware tests.
 
-A critical precondition is an agreed safe-state table per relay type. `SwitchTypeEnum.NONE` is not a sufficient specification: current `Relais.activate(NONE)` can deliberately retain the shared heat element when a water/heating valve is active. The system designer must specify, for each fault class and physical output, whether to open/close/retain it and what independent boiler/pump protection exists.
-
-### Sensor contract and code
-
-The existing sensor payload only guarantees temperature/humidity, and at least one historical sketch publishes retained values. Receiver time alone cannot prove that a retained sample represents a recent measurement. Before enabling stale-data decisions, update/confirm the actual sensor contract to include source `sampledAt` and/or availability/LWT; decide how retained samples are handled. Never mark a retained old reading fresh just because the broker delivered it after a reconnect.
-
-Add `src/services/sensor-safety.ts`:
-
-```ts
-export interface SensorSample {
-  temperatureC: number
-  relativeHumidityPct: number
-  sampledAtMs: number
-}
-
-export type SampleCheck =
-  | { ok: true; sample: SensorSample }
-  | { ok: false; reason: string }
-
-export function validateSample(
-  value: unknown,
-  nowMs: number,
-  maxAgeMs: number
-): SampleCheck {
-  if (!value || typeof value !== 'object') return { ok: false, reason: 'not_object' }
-  const row = value as Record<string, unknown>
-  const temperatureC = Number(row.temperature)
-  const relativeHumidityPct = Number(row.humidity)
-  const sampledAtMs = typeof row.sampledAt === 'string'
-    ? Date.parse(row.sampledAt)
-    : Number(row.sampledAt)
-
-  if (!Number.isFinite(temperatureC) || temperatureC < -20 || temperatureC > 60)
-    return { ok: false, reason: 'temperature_out_of_range' }
-  if (!Number.isFinite(relativeHumidityPct) || relativeHumidityPct < 0 || relativeHumidityPct > 100)
-    return { ok: false, reason: 'humidity_out_of_range' }
-  if (!Number.isFinite(sampledAtMs)) return { ok: false, reason: 'invalid_timestamp' }
-
-  const ageMs = nowMs - sampledAtMs
-  if (ageMs < 0) return { ok: false, reason: 'future_timestamp' }
-  if (ageMs > maxAgeMs) return { ok: false, reason: 'stale_sample' }
-
-  return {
-    ok: true,
-    sample: { temperatureC, relativeHumidityPct, sampledAtMs }
-  }
-}
-```
-
-Limits (`-20..60 C`, `0..100%`, and maximum age) must become named, configurable limits validated against the actual sensor and home. Do not deploy the example thresholds without review. Add a monotonic timestamp check per sensor so older samples cannot replace newer ones. Unit tests must cover numeric strings if the production payload uses them, malformed JSON at the MQTT boundary, retained messages, empty timestamps, invalid values, clock skew, stale and out-of-order samples.
-
-### Thermostat integration
-
-Change the MQTT handler in `src/services/thermostat.ts` to call a parser/validator and update `lastValidSampleAtMs` only on acceptance. A bad message should be logged as a structured reason without throwing out of the MQTT event handler. Add an injectable clock and `maxSensorAgeMs` so watchdog tests are deterministic.
-
-Replace the control variable:
-
-```ts
-// Before: const currentTemp = this.HeatIndex
-const currentTemp = this.CurrentTemperature
-```
-
-Do not use the heat-index estimate for room heat/cool switching. Keep it only as an optional display metric where the formula is applicable.
-
-Add `Thermostat.start()`/`stop()` lifecycle methods. `start()` starts a watchdog at a documented interval; `stop()` clears it and unsubscribes/closes its MQTT client. On watchdog trip, call a centralized `SafetyCoordinator.enterFault(...)`; do not independently call `Relais.activate(NONE)` from every zone. The coordinator must implement the approved safe-state table, stop retries after a bounded number, latch fault details, and expose `unknown` when relay state is not confirmed.
-
-### Relay command protocol
-
-The current `Relais` code cannot prove physical actuation. Change `activate()` and `deactivate()` to return `Promise<void>`, await sequential operations, and reject on MQTT publish error or missing state acknowledgement. The new production relay firmware/controller must publish actual state and echo a command ID. Example wire contract (version and topic names to be agreed with the real device):
-
-```json
-{"commandId":"<uuid>","state":"OFF"}
-```
-
-```json
-{"commandId":"<same-uuid>","state":"OFF","confirmed":true}
-```
-
-In `src/services/relais.ts`, the core shape should become:
-
-```ts
-async setState(relay: IRelaisSwitch, desired: SwitchStateEnum): Promise<void> {
-  const commandId = randomUUID()
-  const acknowledgement = this.waitForAcknowledgement(
-    relay.pinIndex, commandId, desired, this.ackTimeoutMs
-  )
-  await this.publishCommand(relay.pinIndex, commandId, desired)
-  await acknowledgement
-  relay.active = desired === SwitchStateEnum.ON
-  this.emit('update', this.switches)
-}
-
-async activate(type: SwitchTypeEnum): Promise<void> {
-  const plan = this.planTransition(type)
-  for (const relay of plan.turnOffFirst) await this.setState(relay, SwitchStateEnum.OFF)
-  for (const relay of plan.turnOnAfterOffConfirmed) await this.setState(relay, SwitchStateEnum.ON)
-}
-```
-
-Implement `waitForAcknowledgement()` with a timeout, listener cleanup on resolve/reject, command-ID matching, and MQTT disconnect handling. The promise must be created before publishing to avoid missing a fast acknowledgement. Do not update `relay.active` until the matching device acknowledgement is validated. Ensure each command has a unique ID, duplicate messages are idempotent, and no overlapping transition can bypass the coordinator's serialization lock.
-
-If the actual relay firmware cannot be changed to acknowledge state, the app must report `unconfirmed` rather than claim success; the watchdog cannot make an unacknowledged relay safe. Validate the final topic/payload contract against the real production hardware before activation.
-
-### Tests and rollout gates
-
-- TDD tests: malformed/invalid/stale sample never changes outputs; fresh valid sample evaluates; sensor timeout latches fault; invalid samples do not refresh watchdog; relay publish error and acknowledgement timeout latch fault; wrong command ID/state does not acknowledge; OFF transitions precede incompatible ON transitions; multiple zones cannot race shared equipment.
-- Run tests against a fake MQTT client and a relay simulator. Verify the safe-state matrix with outputs disconnected before any live test.
-- Acceptance: status includes fault reason, sample age, last good reading, and actual/unknown relay state. Fault recovery requires explicit reset and verified state. Independent high-limit, boiler, and electrical protections remain in place.
+Remaining limitation: without a source timestamp, a non-retained message is aged from local receipt time; delayed-but-non-retained sensor messages cannot be recognized as old. A retained message without a source timestamp is rejected, so a fresh live sample is needed after subscription. The code cannot prove the relay physically changed state; hardware testing and independent cutoffs remain required before deployment.
 
 ## Recommendation 4: deterministic startup, config validation, optional database, graceful shutdown
 

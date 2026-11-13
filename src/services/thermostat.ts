@@ -3,16 +3,33 @@ import { Platform } from '../platform'
 import { FileSystem } from './filesystem'
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info'
 import { isCoolType, isHeatType, IThermostatInstanceConfig, SwitchTypeEnum } from './config'
-import { connect } from 'mqtt'
+import { connect, MqttClient } from 'mqtt'
+import {
+  DEFAULT_SENSOR_STALE_AFTER_MS,
+  hasFreshSensorSample,
+  isSensorStale,
+  validateSensorPayload
+} from './sensor-safety'
 
 export class Thermostat {
   private readonly platform: Platform
   private readonly fs: FileSystem = new FileSystem()
   private readonly relais: Relais
+  private sensorClient: MqttClient
   private weatherInfo: WeatherInfoService
   private retries: number = 0
   private currentForecast: OpenWeatherMapResponse
   private temperatureHistory: { date: Date, temperature: number }[] = []
+  private readonly sensorStartedAtMs: number = Date.now()
+  private readonly sensorMaxAgeMs: number = DEFAULT_SENSOR_STALE_AFTER_MS
+  private lastValidSensorAtMs?: number
+  private lastSampledAtMs?: number
+  private sensorWatchdog: NodeJS.Timeout
+  private sensorErrorStatus: ThermostatErrorStatus | null = null
+  private relayErrorStatus: ThermostatErrorStatus | null = null
+  private faultShutdownAttempts: number = 0
+  private lastFaultShutdownAttemptAtMs: number = 0
+  private lastFaultShutdownFailures: { pinIndex: number; message: string }[] = []
 
   private readonly instance_name: string
 
@@ -26,6 +43,18 @@ export class Thermostat {
 
     this.relais.on('update', (switches) => {
       this.instance.switches = switches
+    })
+    this.relais.on('relayCommandError', (failure: { pinIndex?: number; error: unknown }) => {
+      const message = failure.error instanceof Error ? failure.error.message : String(failure.error)
+      this.relayErrorStatus = {
+        code: 'RELAY_COMMAND_FAILED',
+        message: `MQTT relay command could not be published${failure.pinIndex === undefined ? '' : ` for pin ${failure.pinIndex}`}: ${message}`,
+        at: new Date().toISOString()
+      }
+    })
+    this.relais.on('commandPublished', () => {
+      // This clears only a prior broker-publish error; it is not a physical relay acknowledgement.
+      this.relayErrorStatus = null
     })
 
     // check if logging file exists, if not create csv file
@@ -69,41 +98,115 @@ export class Thermostat {
 
     const topic: string = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
 
-    let client = connect('mqtt://localhost:1883')
-    client.on('connect', () => {
+    this.sensorClient = connect('mqtt://localhost:1883')
+    this.sensorClient.on('connect', () => {
       this.platform.logger.info('Connected to MQTT server')
 
-      client.subscribe([topic], () => {
+      this.sensorClient.subscribe([topic], (err) => {
+        if (err) {
+          this.platform.logger.error('Could not subscribe to thermostat sensor topic', topic, err)
+          void this.enterSensorFault('SENSOR_MQTT_ERROR', `Could not subscribe to sensor topic: ${err.message}`)
+          return
+        }
         this.platform.logger.debug(`Subscribe to topic '${topic}'`)
       })
     })
 
-    client.on('message', async (topic, payload) => {
-      this.platform.logger.debug('Received Message:', topic, payload.toString())
-
-      const data = JSON.parse(payload.toString())
-
-      const date = new Date()
-
-      this.state.currentTemperature = +data.temperature
-      this.state.currentRelativeHumidity = +data.humidity
-
-      await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${date.toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
-
-      try {
-        await this.addHistoryEntry(date, +data.temperature)
-      } catch (err) {
-        this.platform.logger.error(`Could not add temperature into History, temp delta's might be faulty!`)
-      }
-
-      await this.evaluateChanges()
+    this.sensorClient.on('error', err => {
+      this.platform.logger.error('Thermostat sensor MQTT client error', err)
+      void this.enterSensorFault('SENSOR_MQTT_ERROR', `Sensor MQTT error: ${err.message}`)
     })
+
+    this.sensorClient.on('message', (topic, payload, packet) => {
+      this.platform.logger.debug('Received Message:', topic, payload.toString())
+      void this.handleSensorMessage(payload, Boolean(packet?.retain)).catch(err => {
+        this.platform.logger.error('Failed to process thermostat sensor message', err)
+        void this.enterSensorFault('SENSOR_INVALID', 'Sensor message processing failed')
+      })
+    })
+
+    this.sensorWatchdog = setInterval(() => {
+      const now = Date.now()
+      if (isSensorStale(this.lastValidSensorAtMs, this.sensorStartedAtMs, now, this.sensorMaxAgeMs)) {
+        void this.enterSensorFault('SENSOR_STALE', 'No fresh valid sensor sample received before the timeout')
+      }
+    }, 30_000)
+    this.sensorWatchdog.unref()
 
     // set update interval fur current temperature to 1 minute
     // setInterval(async () => {
     //   await this.getSensorData()
     //   await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
     // }, 60000)
+  }
+
+  private async handleSensorMessage(payload: Buffer, retained: boolean): Promise<void> {
+    const now = Date.now()
+    const checked = validateSensorPayload(payload, now, this.sensorMaxAgeMs, retained)
+    if (!checked.ok) {
+      await this.enterSensorFault(checked.code, checked.message)
+      return
+    }
+    if (this.lastSampledAtMs !== undefined && checked.sample.sampledAtMs <= this.lastSampledAtMs) {
+      await this.enterSensorFault('SENSOR_STALE', 'Sensor sample timestamp did not advance')
+      return
+    }
+
+    this.lastValidSensorAtMs = checked.sample.receivedAtMs
+    this.lastSampledAtMs = checked.sample.sampledAtMs
+    this.sensorErrorStatus = null
+    this.faultShutdownAttempts = 0
+    this.lastFaultShutdownFailures = []
+
+    const date = new Date(checked.sample.receivedAtMs)
+    this.state.currentTemperature = checked.sample.temperatureC
+    this.state.currentRelativeHumidity = checked.sample.relativeHumidityPct
+
+    await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${date.toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+
+    try {
+      await this.addHistoryEntry(date, checked.sample.temperatureC)
+    } catch (err) {
+      this.platform.logger.error(`Could not add temperature into History, temp delta's might be faulty!`)
+    }
+
+    await this.evaluateChanges()
+  }
+
+  private async enterSensorFault(code: 'SENSOR_INVALID' | 'SENSOR_STALE' | 'SENSOR_MQTT_ERROR', message: string): Promise<void> {
+    const now = Date.now()
+    if (!this.sensorErrorStatus) {
+      this.sensorErrorStatus = { code, message, at: new Date(now).toISOString() }
+      this.faultShutdownAttempts = 0
+      this.lastFaultShutdownFailures = []
+    }
+
+    const retryDue = now - this.lastFaultShutdownAttemptAtMs >= 30_000
+    if (this.faultShutdownAttempts >= 3 ||
+        (this.faultShutdownAttempts > 0 && (!retryDue || this.lastFaultShutdownFailures.length === 0))) {
+      return
+    }
+
+    this.faultShutdownAttempts++
+    this.lastFaultShutdownAttemptAtMs = now
+    const result = await this.relais.deactivateForSensorFault()
+    this.lastFaultShutdownFailures = result.failures
+    this.sensorErrorStatus = {
+      ...this.sensorErrorStatus,
+      requestedOffPinIndexes: result.requestedPinIndexes,
+      relayCommandFailures: result.failures,
+      relayCommandConfirmation: result.requestedPinIndexes.length === 0
+        ? 'No thermostat-controlled HVAC relays are configured for this zone; no relay command was published'
+        : result.failures.length === 0
+          ? 'MQTT broker accepted QoS 1 publishes; physical relay acknowledgement is unavailable'
+          : 'One or more OFF commands failed at the MQTT broker; physical relay state is unknown'
+    }
+  }
+
+  public stop(): void {
+    clearInterval(this.sensorWatchdog)
+    this.sensorClient?.end(true)
+    this.relais.client?.end(true)
   }
 
   async addHistoryEntry(date: Date, temperature: number): Promise<void> {
@@ -183,7 +286,15 @@ export class Thermostat {
 
   async evaluateChanges() {
     this.platform.logger.debug('Thermostat.evaluateChanges() -- start')
-    // Changed back to current temp instead of Heat Index
+    const now = Date.now()
+    if (!hasFreshSensorSample(this.lastValidSensorAtMs, now, this.sensorMaxAgeMs)) {
+      if (this.lastValidSensorAtMs !== undefined || now - this.sensorStartedAtMs >= this.sensorMaxAgeMs) {
+        await this.enterSensorFault('SENSOR_STALE', 'Automatic control is inhibited because the sensor sample is stale')
+      }
+      return
+    }
+
+    // The thermostat intentionally controls to apparent temperature (heat index), per the comfort policy.
     const currentTemp = this.HeatIndex
     const thresholds = this.thresholds
     const temperatureDeltas = this.temperatureDeltas
@@ -218,10 +329,10 @@ export class Thermostat {
       switch (this.state.targetHeatingCoolingState) {
         case HeatingCoolingStateEnum.OFF:
           this.platform.logger.debug('Thermostat.evaluateChanges() -- targetHeatingCoolingState is OFF, set current state to OFF')
-          this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState
 
           // If any relais is still powered on, turn them off
-          this.relais.activate(SwitchTypeEnum.NONE)
+          await this.relais.activate(SwitchTypeEnum.NONE)
+          this.state.currentHeatingCoolingState = this.state.targetHeatingCoolingState
           return
 
         case HeatingCoolingStateEnum.HEAT:
@@ -231,13 +342,13 @@ export class Thermostat {
 
         case HeatingCoolingStateEnum.COOL:
           this.platform.logger.debug('Thermostat.evaluateChanges() -- Target is cooling, check if currently cooling')
-          this.relais.activate(SwitchTypeEnum.NONE)
+          await this.relais.activate(SwitchTypeEnum.NONE)
           if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.COOL) {
             this.platform.logger.debug('Thermostat.evaluateChanges() -- Check if target temperature has been reached')
             if (currentTemp <= this.thresholds.coolingMin) {
               this.platform.logger.debug('Thermostat.evaluateChanges() -- turn off cooling since target has been reached, don\'t change target')
               try {
-                this.relais.activate(SwitchTypeEnum.NONE)
+                await this.relais.activate(SwitchTypeEnum.NONE)
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF
                 this.retries = 0
               } catch {
@@ -250,7 +361,7 @@ export class Thermostat {
             if (currentTemp >= this.thresholds.coolingMax) {
               this.platform.logger.debug('Thermostat.evaluateChanges() -- turn on heating since min target has been reached, don\'t change target')
               try {
-                this.relais.activate(SwitchTypeEnum.COOL)
+                await this.relais.activate(SwitchTypeEnum.COOL)
                 this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.COOL
                 this.retries = 0
               } catch {
@@ -289,7 +400,7 @@ export class Thermostat {
     this.platform.logger.debug('Thermostat.handleHeatState() -- config ', this.relais.switches)
     if (this.relais.switches.some(e => isCoolType(e.type) && e.active)) {
       this.platform.logger.debug('system state is heating, turn off COOL')
-      this.relais.activate(SwitchTypeEnum.NONE)
+      await this.relais.activate(SwitchTypeEnum.NONE)
     }
     // The system is currently heating
     if (this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT) {
@@ -297,14 +408,14 @@ export class Thermostat {
       // check if all relais are active
       if (this.relais.switches.some(e => isHeatType(e.type) && !e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- HEAT is active but some relais are not activated!')
-        this.relais.activate(SwitchTypeEnum.HEAT)
+        await this.relais.activate(SwitchTypeEnum.HEAT)
       }
       // check if we need to shutdown heater for reaching maximum temperature
       this.platform.logger.debug('Thermostat.handleHeatState() -- Check if target temperature has not been reached')
       if (currentTemp >= this.thresholds.heatingMax) {
         this.platform.logger.debug('Thermostat.handleHeatState() -- turn off heating since target has been reached, don\'t change target')
         try {
-          this.relais.activate(SwitchTypeEnum.NONE)
+          await this.relais.activate(SwitchTypeEnum.NONE)
           this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.OFF
           this.retries = 0
         } catch {
@@ -319,7 +430,7 @@ export class Thermostat {
       // check if all relais are inactive
       if (this.relais.switches.some(e => isHeatType(e.type) && e.active)) {
         this.platform.logger.warn('Thermostat.handleHeatState() -- NONE is active but some relais are activated!')
-        this.relais.activate(SwitchTypeEnum.NONE)
+        await this.relais.activate(SwitchTypeEnum.NONE)
       }
       // check if temperature has drifted below an acceptable temperature.
       this.platform.logger.debug('Thermostat.handleHeatState() -- Check if temperature has drifted below an acceptable temperature range')
@@ -327,7 +438,7 @@ export class Thermostat {
         // tslint:disable-next-line: max-line-length
         this.platform.logger.debug('Thermostat.handleHeatState() -- turn on heating since min target has been reached, don\'t change target')
         try {
-          this.relais.activate(SwitchTypeEnum.HEAT)
+          await this.relais.activate(SwitchTypeEnum.HEAT)
           this.state.currentHeatingCoolingState = HeatingCoolingStateEnum.HEAT
           this.retries = 0
         } catch {
@@ -591,6 +702,22 @@ export class Thermostat {
     return this.state
   }
 
+  get ErrorStatus(): ThermostatErrorStatus | null {
+    const error = this.sensorErrorStatus ?? this.relayErrorStatus
+    if (!error) return null
+    return {
+      ...error,
+      sensorMaxAgeMs: this.sensorMaxAgeMs,
+      lastValidSampleAt: this.lastValidSensorAtMs === undefined
+        ? null
+        : new Date(this.lastValidSensorAtMs).toISOString(),
+      sampleAgeMs: this.lastValidSensorAtMs === undefined
+        ? null
+        : Math.max(0, Date.now() - this.lastValidSensorAtMs),
+      mqttReportedRelays: this.relais.mqttReportedRelays
+    }
+  }
+
   get CurrentTemperature(): number {
     return this.state.currentTemperature
   }
@@ -621,26 +748,6 @@ export class Thermostat {
     this.evaluateChanges()
   }
 
-  // get HeatElementOn(): boolean {
-  //   return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_ELEMENT)?.active ?? null
-  // }
-  //
-  // get HeatValveOn(): boolean {
-  //   return this.relais.switches.find(e => e.type === SwitchTypeEnum.HEAT_VALVE)?.active ?? null
-  // }
-  //
-  // get WaterValveOn(): boolean {
-  //   this.platform.logger.debug(`WaterValveOn() -- `, this.relais.switches, this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE))
-  //   return this.relais.switches.find(e => e.type === SwitchTypeEnum.WATER_VALVE)?.active ?? null
-  // }
-  //
-  // set WaterValveOn(value: boolean) {
-  //   this.platform.logger.debug('Set target state WaterValveOn to: ' + value)
-  //   if (value)
-  //     this.relais.activate(SwitchTypeEnum.WATER_VALVE)
-  //   else
-  //     this.relais.deactivate(SwitchTypeEnum.WATER_VALVE)
-  // }
 }
 
 export interface ThermostatState {
@@ -650,6 +757,19 @@ export interface ThermostatState {
   currentHeatingCoolingState: HeatingCoolingStateEnum
   targetHeatingCoolingState: HeatingCoolingStateEnum
   temperatureDisplayUnits: TemperatureDisplayUnits
+}
+
+export interface ThermostatErrorStatus {
+  code: 'SENSOR_INVALID' | 'SENSOR_STALE' | 'SENSOR_MQTT_ERROR' | 'RELAY_COMMAND_FAILED'
+  message: string
+  at: string
+  requestedOffPinIndexes?: number[]
+  relayCommandFailures?: { pinIndex: number; message: string }[]
+  relayCommandConfirmation?: string
+  sensorMaxAgeMs?: number
+  lastValidSampleAt?: string | null
+  sampleAgeMs?: number | null
+  mqttReportedRelays?: { pinIndex: number; type: string; state: 'ON' | 'OFF' | 'UNKNOWN'; reportedAt?: string }[]
 }
 
 export interface TemperatureThresholds {
