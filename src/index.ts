@@ -1,34 +1,40 @@
 import { Platform } from './platform'
 
-function main(debug?: boolean) {
-  return new Promise((resolve, reject) => {
-    try {
-      const platform = new Platform()
-      resolve(true)
-    } catch (err) {
-      reject(err)
+async function main(): Promise<void> {
+  let platform: Platform | undefined
+  let shutdownRequested = false
+  let shutdownPromise: Promise<void> | undefined
+
+  const shutdown = async (signal: string): Promise<void> => {
+    shutdownRequested = true
+    const runningPlatform = platform
+    if (!runningPlatform) return
+    if (!shutdownPromise) {
+      console.info(`Received ${signal}; shutting down thermostat services`)
+      shutdownPromise = runningPlatform.stop()
     }
+    await shutdownPromise
+    process.exitCode = 0
+  }
+
+  process.once('SIGINT', () => {
+    void shutdown('SIGINT').catch(error => {
+      console.error('Thermostat shutdown failed', error)
+      process.exitCode = 1
+    })
   })
+  process.once('SIGTERM', () => {
+    void shutdown('SIGTERM').catch(error => {
+      console.error('Thermostat shutdown failed', error)
+      process.exitCode = 1
+    })
+  })
+
+  platform = await Platform.create()
+  if (shutdownRequested) await shutdown('startup')
 }
 
-main()
-
-// catch ctrl+c event and exit normally
-process.on('SIGINT', async _ => {
-  // await platform.kill()
-  console.debug('SIGINT!')
-  process.exit()
-})
-
-// catch uncaught exceptions, trace, then restart
-process.on('uncaughtException', err => {
-  try {
-    console.debug('process.uncaughtException -- Try to kill main if still running.')
-    // platform.kill()
-  } catch {
-    console.error('process.uncaughtException -- There was an error killing main.')
-    // platform.kill()
-  }
-  console.error('process.uncaughtException -- Starting new instance of main.', err)
-  // main()
+main().catch(error => {
+  console.error('Thermostat startup failed', error)
+  process.exitCode = 1
 })

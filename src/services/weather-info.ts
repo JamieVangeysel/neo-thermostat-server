@@ -1,29 +1,38 @@
 import { EventEmitter } from 'events'
-import { Platform } from '../platform'
+import type { Platform } from '../platform'
 
 export class WeatherInfoService extends EventEmitter {
   private readonly platform: Platform
+  private interval?: NodeJS.Timeout
 
   constructor(platform: Platform) {
     super()
 
     this.platform = platform
     this.platform.logger.debug(`WeatherInfoService() -- start`)
-    if (platform.config.weatherMapApiKey && platform.config.weatherMapApiKey.trim().length > 0) {
-      this.platform.logger.debug(`WeatherInfoService() -- has weatherMapApiKey, start interval`)
-      this.start().then()
-    } else {
-      this.platform.logger.warn(`WeatherInfoService() -- no weatherMapApiKey configured, skip `)
-    }
     this.platform.logger.debug(`WeatherInfoService() -- end`)
   }
 
-  private async start() {
-    this.platform.logger.debug(`WeatherInfoService.start() -- start`)
-    const update = this.update.bind(this)
-    setInterval(update, 300000)
-    await update()
-    this.platform.logger.debug(`WeatherInfoService.start() -- end`)
+  async start(): Promise<void> {
+    if (this.interval) return
+    const apiKey = this.platform.config.weatherMapApiKey?.trim()
+    if (!apiKey) {
+      this.platform.logger.warn('WeatherInfoService() -- no weatherMapApiKey configured, skip')
+      return
+    }
+    this.platform.logger.debug('WeatherInfoService() -- has weatherMapApiKey, start interval')
+    this.interval = setInterval(() => { void this.update() }, 300000)
+    // Weather is optional and must not hold application startup open.
+    void this.update()
+    this.platform.logger.debug('WeatherInfoService.start() -- end')
+  }
+
+  async stop(): Promise<void> {
+    if (this.interval) {
+      clearInterval(this.interval)
+      this.platform.logger.debug('WeatherInfoService.stop() -- cleared update interval')
+    }
+    this.interval = undefined
   }
 
   async update() {
@@ -34,7 +43,7 @@ export class WeatherInfoService extends EventEmitter {
     } catch (err) {
       this.emit('error', err)
     } finally {
-      this.platform.logger.debug(`WeatherInfoService.start() -- end`)
+      this.platform.logger.debug('WeatherInfoService.update() -- end')
     }
   }
 

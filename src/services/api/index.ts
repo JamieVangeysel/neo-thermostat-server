@@ -15,6 +15,7 @@ let fastifyConfig = {
 export class API {
   _port: number
   private readonly _platform: Platform
+  private listening = false
 
   server: FastifyInstance<Http2SecureServer, Http2ServerRequest, Http2ServerResponse>
 
@@ -78,15 +79,32 @@ export class API {
     // })
   }
 
-  async listen() {
+  async listen(host: string = '0.0.0.0'): Promise<void> {
+    this.platform.logger.debug('API.listen() -- Start')
     try {
-      this.platform.logger.debug('API.listen() -- Start')
-      await this.server.listen({ port: this._port, host: '0.0.0.0' })
-      this.platform.logger.info(`API.listen() -- Server listening on ${this._port}.`)
-    } catch (err) {
-      this.platform.logger.error(err)
+      await this.server.listen({ port: this._port, host })
+      this.listening = true
+      this.platform.logger.info(`API.listen() -- Server listening on ${host}:${this._port}.`)
+    } catch (error) {
+      this.platform.logger.error('API.listen() -- failed to start', error)
+      throw error
     } finally {
       this.platform.logger.debug('API.listen() -- End')
+    }
+  }
+
+  async close(): Promise<void> {
+    if (!this.listening) return
+    this.platform.logger.debug('API.close() -- Start')
+    try {
+      await this.server.close()
+      this.listening = false
+      this.platform.logger.info('API.close() -- server closed')
+    } catch (error) {
+      this.platform.logger.error('API.close() -- failed to close server', error)
+      throw error
+    } finally {
+      this.platform.logger.debug('API.close() -- End')
     }
   }
 

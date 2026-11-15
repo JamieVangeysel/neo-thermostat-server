@@ -8,7 +8,7 @@ export class Relais extends EventEmitter {
   platform: Platform
   config: IRelaisV2
   switches: IRelaisSwitch[]
-  client: MqttClient
+  client?: MqttClient
   private readonly reportedRelayStates = new Map<number, { active: boolean; at: string }>()
 
   constructor(platform: Platform, switches: IRelaisSwitch[]) {
@@ -20,27 +20,44 @@ export class Relais extends EventEmitter {
 
     this.platform.logger.info('Relais zone switches', this.switches)
 
-    this.client = connect('mqtt://localhost:1883', {
+  }
+
+  async start(): Promise<void> {
+    if (this.client) return
+    this.platform.logger.debug('Relais.start() -- connecting to MQTT broker')
+    const client = connect('mqtt://localhost:1883', {
       username: 'neo',
       password: 'password'
     })
-    this.client.on('error', err => {
+    this.client = client
+    client.on('error', err => {
       this.platform.logger.error('Relais MQTT client error', err)
       this.emit('relayCommandError', { error: err })
     })
-    this.client.on('offline', () => {
+    client.on('offline', () => {
       this.emit('relayCommandError', { error: new Error('Relay MQTT client is offline') })
     })
     this.listen()
   }
 
-  listen() {
-    const topic = `${this.config.hostname}/relais/#`
+  async stop(): Promise<void> {
+    const client = this.client
+    this.client = undefined
+    if (!client) return
+    this.platform.logger.debug('Relais.stop() -- closing MQTT client')
+    await new Promise<void>(resolve => client.end(true, {}, () => resolve()))
+    this.platform.logger.info('Relais.stop() -- MQTT client closed')
+  }
 
-    this.client.on('connect', () => {
+  private listen(): void {
+    const topic = `${this.config.hostname}/relais/#`
+    const client = this.client
+    if (!client) throw new Error('Relay MQTT client has not been started')
+
+    client.on('connect', () => {
       this.platform.logger.info('Connected to MQTT server')
 
-      this.client.subscribe([topic], err => {
+      client.subscribe([topic], err => {
         if (err) {
           this.platform.logger.error('Could not subscribe to relay status topic', topic, err)
           this.emit('relayCommandError', { error: err })
@@ -50,7 +67,7 @@ export class Relais extends EventEmitter {
       })
     })
 
-    this.client.on('message', async (topic: string, payload: Buffer) => {
+    client.on('message', async (topic: string, payload: Buffer) => {
       this.platform.logger.debug('Received Message:', topic, payload.toString())
 
       const topicPrefix = `${this.config.hostname}/relais/`
@@ -182,6 +199,7 @@ export class Relais extends EventEmitter {
         this.platform.logger.log(`Relais.setState() -- relais is currently OFF and needs to be switched ON`, relais.pinIndex)
       }
       try {
+        if (!this.client) throw new Error('Relay MQTT client has not been started')
         await publishWithBrokerAck(
           this.client,
           `${this.config.hostname}/relais/${relais.pinIndex}`,

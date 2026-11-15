@@ -15,16 +15,17 @@ export class Thermostat {
   private readonly platform: Platform
   private readonly fs: FileSystem = new FileSystem()
   private readonly relais: Relais
-  private sensorClient: MqttClient
-  private weatherInfo: WeatherInfoService
+  private sensorClient?: MqttClient
+  private weatherInfo?: WeatherInfoService
   private retries: number = 0
   private currentForecast: OpenWeatherMapResponse
   private temperatureHistory: { date: Date, temperature: number }[] = []
-  private readonly sensorStartedAtMs: number = Date.now()
+  private sensorStartedAtMs?: number
   private readonly sensorMaxAgeMs: number = DEFAULT_SENSOR_STALE_AFTER_MS
   private lastValidSensorAtMs?: number
   private lastSampledAtMs?: number
-  private sensorWatchdog: NodeJS.Timeout
+  private sensorWatchdog?: NodeJS.Timeout
+  private started = false
   private sensorErrorStatus: ThermostatErrorStatus | null = null
   private relayErrorStatus: ThermostatErrorStatus | null = null
   private faultShutdownAttempts: number = 0
@@ -57,52 +58,45 @@ export class Thermostat {
       this.relayErrorStatus = null
     })
 
-    // check if logging file exists, if not create csv file
-    this.fs.exists(`data-log-${this.instance_name}.csv`).then(async (logExists) => {
-      if (!logExists) {
-        // if the file does not exist create file with appropriate csv headers
-        await this.fs.writeFile(`data-log-${this.instance_name}.csv`, Buffer.from('date,state,target-state,temperature,target-temperature,outside-temperature,heat-index\n'))
-        await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
-      }
-    }, rej => {
-      this.platform.logger.error(rej)
-    }).catch(err => {
-      this.platform.logger.error(err.message)
-    })
+  }
+
+  async start(): Promise<void> {
+    if (this.started) return
+    this.platform.logger.info(`Thermostat.start() -- starting instance '${this.instance_name}'`)
+    this.sensorStartedAtMs = Date.now()
+
+    const logPath = `data-log-${this.instance_name}.csv`
+    if (!(await this.fs.exists(logPath))) {
+      await this.fs.writeFile(logPath, Buffer.from('date,state,target-state,temperature,target-temperature,outside-temperature,heat-index\n'))
+      await this.fs.writeAppendFile(logPath, Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+    }
 
     this.weatherInfo = new WeatherInfoService(this.platform)
-    this.weatherInfo.on('forecast', async (forecast: any) => {
+    this.weatherInfo.on('error', err => this.platform.logger.error('Weather update failed', err))
+    this.weatherInfo.on('forecast', async (forecast: OpenWeatherMapResponse) => {
       this.platform.logger.debug(`Thermostat.weatherInfo.on('forecast')`, forecast.main)
       try {
         if (this.platform.database.enabled) {
-          const ok = await this.platform.database.insertIntoCollection('forecastHistory', {
-            date: new Date(),
-            forecast
-          })
-
-          if (ok) {
-            this.platform.logger.log(`Thermostat.weatherInfo.on('forecast') -- Successfully added forecast to forecastHistory in DB.`)
-          }
+          await this.platform.database.insertIntoCollection('forecastHistory', { date: new Date(), forecast })
+          this.platform.logger.debug(`Thermostat.weatherInfo.on('forecast') -- persisted forecast history`)
         }
       } catch (err) {
-        this.platform.logger.error(`Thermostat.weatherInfo.on('forecast') -- Error adding forecast to DB!`)
+        this.platform.logger.error('Could not persist forecast', err)
       }
       this.currentForecast = forecast
-      this.platform.logger.debug(`Outside heat index: `, this.calculateHeatIndex(forecast.main.temp, forecast.main.humidity))
-      this.platform.logger.debug(`Outside wind chill factor: `, this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed))
+      this.platform.logger.debug('Outside heat index:', this.calculateHeatIndex(forecast.main.temp, forecast.main.humidity))
+      this.platform.logger.debug('Outside wind chill factor:', this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed))
     })
 
-    // 03D3CE : Mathijs
-    // D6C1AD : Kitchen
-    // 3B2702 : Living
+    await this.relais.start()
+    await this.weatherInfo.start()
 
     const topic: string = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
-
-    this.sensorClient = connect('mqtt://localhost:1883')
-    this.sensorClient.on('connect', () => {
+    const sensorClient = connect('mqtt://localhost:1883')
+    this.sensorClient = sensorClient
+    sensorClient.on('connect', () => {
       this.platform.logger.info('Connected to MQTT server')
-
-      this.sensorClient.subscribe([topic], (err) => {
+      sensorClient.subscribe([topic], err => {
         if (err) {
           this.platform.logger.error('Could not subscribe to thermostat sensor topic', topic, err)
           void this.enterSensorFault('SENSOR_MQTT_ERROR', `Could not subscribe to sensor topic: ${err.message}`)
@@ -111,14 +105,12 @@ export class Thermostat {
         this.platform.logger.debug(`Subscribe to topic '${topic}'`)
       })
     })
-
-    this.sensorClient.on('error', err => {
+    sensorClient.on('error', err => {
       this.platform.logger.error('Thermostat sensor MQTT client error', err)
       void this.enterSensorFault('SENSOR_MQTT_ERROR', `Sensor MQTT error: ${err.message}`)
     })
-
-    this.sensorClient.on('message', (topic, payload, packet) => {
-      this.platform.logger.debug('Received Message:', topic, payload.toString())
+    sensorClient.on('message', (_topic, payload, packet) => {
+      this.platform.logger.debug('Received Message:', _topic, payload.toString())
       void this.handleSensorMessage(payload, Boolean(packet?.retain)).catch(err => {
         this.platform.logger.error('Failed to process thermostat sensor message', err)
         void this.enterSensorFault('SENSOR_INVALID', 'Sensor message processing failed')
@@ -127,23 +119,19 @@ export class Thermostat {
 
     this.sensorWatchdog = setInterval(() => {
       const now = Date.now()
-      if (isSensorStale(this.lastValidSensorAtMs, this.sensorStartedAtMs, now, this.sensorMaxAgeMs)) {
+      if (this.sensorStartedAtMs !== undefined && isSensorStale(this.lastValidSensorAtMs, this.sensorStartedAtMs, now, this.sensorMaxAgeMs)) {
         void this.enterSensorFault('SENSOR_STALE', 'No fresh valid sensor sample received before the timeout')
       }
     }, 30_000)
     this.sensorWatchdog.unref()
-
-    // set update interval fur current temperature to 1 minute
-    // setInterval(async () => {
-    //   await this.getSensorData()
-    //   await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
-    // }, 60000)
+    this.started = true
+    this.platform.logger.info(`Thermostat.start() -- instance '${this.instance_name}' started`)
   }
 
   private async handleSensorMessage(payload: Buffer, retained: boolean): Promise<void> {
     const now = Date.now()
     const checked = validateSensorPayload(payload, now, this.sensorMaxAgeMs, retained)
-    if (!checked.ok) {
+    if (checked.ok === false) {
       await this.enterSensorFault(checked.code, checked.message)
       return
     }
@@ -203,10 +191,17 @@ export class Thermostat {
     }
   }
 
-  public stop(): void {
-    clearInterval(this.sensorWatchdog)
-    this.sensorClient?.end(true)
-    this.relais.client?.end(true)
+  public async stop(): Promise<void> {
+    this.platform.logger.info(`Thermostat.stop() -- stopping instance '${this.instance_name}'`)
+    if (this.sensorWatchdog) clearInterval(this.sensorWatchdog)
+    this.sensorWatchdog = undefined
+    const sensorClient = this.sensorClient
+    this.sensorClient = undefined
+    if (sensorClient) await new Promise<void>(resolve => sensorClient.end(true, {}, () => resolve()))
+    await this.weatherInfo?.stop()
+    await this.relais.stop()
+    this.started = false
+    this.platform.logger.info(`Thermostat.stop() -- instance '${this.instance_name}' stopped`)
   }
 
   async addHistoryEntry(date: Date, temperature: number): Promise<void> {
@@ -288,7 +283,8 @@ export class Thermostat {
     this.platform.logger.debug('Thermostat.evaluateChanges() -- start')
     const now = Date.now()
     if (!hasFreshSensorSample(this.lastValidSensorAtMs, now, this.sensorMaxAgeMs)) {
-      if (this.lastValidSensorAtMs !== undefined || now - this.sensorStartedAtMs >= this.sensorMaxAgeMs) {
+      const startupAgeExpired = this.sensorStartedAtMs !== undefined && now - this.sensorStartedAtMs >= this.sensorMaxAgeMs
+      if (this.lastValidSensorAtMs !== undefined || startupAgeExpired) {
         await this.enterSensorFault('SENSOR_STALE', 'Automatic control is inhibited because the sensor sample is stale')
       }
       return

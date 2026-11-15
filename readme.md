@@ -18,11 +18,11 @@ The original design notes described a shared heat element and hot-water relay. T
 
 ## Architecture and data flow
 
-1. `src/index.ts` constructs `Platform`.
-2. `ConfigService` reads `./config.json`, accepts version 2 or 3, and upgrades a version-2 object to version 3 in memory.
-3. Each configured thermostat creates a `Relais` MQTT client and subscribes to a temperature topic. Current topic selection is hard-coded around one sensor ID; it is not a general mapping from configured sensor IDs to MQTT topics.
+1. `src/index.ts` awaits `Platform.create()`; configuration is loaded and validated before services are constructed or listeners are opened.
+2. `ConfigService.load()` parses and validates `./config.json`. Version-2 configs are backed up and atomically migrated to v3. A missing file gets an inert v3 template with no thermostat instances; malformed/invalid files fail before services start.
+3. Each configured thermostat's `start()` creates its relay/sensor MQTT clients and subscribes to a temperature topic. Current topic selection is hard-coded around one sensor ID; it is not a general mapping from configured sensor IDs to MQTT topics.
 4. Temperature messages update in-memory state, append a CSV row, update a JSON history file, and call `evaluateChanges()`.
-5. `evaluateChanges()` uses a fresh validated room-air temperature, configured target/mode, and relay state to decide whether to publish relay commands. Commands go to `relais.hostname/relais/<pin>` at QoS 1; incoming ON/OFF messages are the available MQTT-reported relay state. A broker PUBACK is not proof of physical relay actuation.
+5. `evaluateChanges()` uses a fresh validated sensor sample and `HeatIndex` as the comfort/control value. Commands go to `relais.hostname/relais/<pin>` at QoS 1; incoming ON/OFF messages are the available MQTT-reported relay state. A broker PUBACK is not proof of physical relay actuation.
 6. `WeatherInfoService` optionally polls OpenWeatherMap every five minutes. The coordinates are currently hard-coded in `src/services/weather-info.ts`.
 7. The plain Node HTTP listener binds to the configured host/port. A separate Fastify server binds to `0.0.0.0` on `port + 1`.
 
@@ -57,7 +57,7 @@ Development mode makes the Fastify route prefix `/test`; production uses `/v1` u
 - `relais.hostname` (MQTT topic prefix) and `relais.secure`
 - `instances[]`: optional `name`, `temperatureSensor`, `switches[]`, and `thermostatState`
 - `thermostatState`: current/target temperature, current/target mode, humidity, and display units
-- `mongoDB` is typed as optional, but the current database service dereferences it during construction. A fresh version-3 configuration without `mongoDB` can therefore fail during startup; fix this before relying on clean installs.
+- `mongoDB` is optional. If omitted, Mongo persistence stays disabled and startup continues; configured Mongo connection failures are logged and treated as optional persistence failure.
 
 Switch types in `src/services/config.ts` include `HEAT`, `HEAT_VALVE`, `COOL`, `COOL_ELEMENT`, `COOL_VALVE`, and `VENT`. `HEAT_ELEMENT` remains only for legacy configuration; the Arduino controls it. `WATER_VALVE` is deprecated and not controlled or listed by the thermostat. Carefully verify which zone output each `pinIndex` controls before enabling the service. MQTT-reported state may be `UNKNOWN` until a status message arrives.
 
@@ -95,7 +95,7 @@ Highest priority:
 1. **Credential handling.** Local/example credentials in source are not the production credentials; production secrets are managed separately. Do not copy deployment secrets into source, docs, logs, or this repository.
 2. **Fail-safe sensor/relay behavior (implemented in source).** MQTT input is parsed and range/timestamp checked; automatic control is inhibited until a fresh valid sample arrives and a 15-minute watchdog timeout shuts down this zone's thermostat-controlled HVAC outputs. It reports error status at `/<instance>/error-status`. OFF commands are retried at most three times only after broker publish failures. QoS 1 confirms broker receipt, not physical actuation; status remains MQTT-reported/unknown because the relay controller has no command acknowledgement.
 3. **Comfort control uses apparent temperature.** `evaluateChanges()` continues to use `HeatIndex` as the comfort/control value, as intended for this installation. Raw room temperature is validated for sensor safety and exposed separately; it does not replace the heat-index target.
-4. **Fix lifecycle and configuration startup.** The async `initialized` event handler is not awaited by `EventEmitter`; `Platform` also starts initialization from its constructor without returning/awaiting it. Validate/migrate configuration before creating services, handle missing MongoDB cleanly, await all startup steps, and implement graceful shutdown for HTTP/MQTT/database connections.
+4. **Deterministic startup/configuration (implemented).** `Platform.create()` awaits config validation, optional database initialization, thermostat startup, and both listeners; malformed config fails before clients/listeners are opened. Version-2 config is backed up and atomically migrated. Shutdown handles SIGINT/SIGTERM and closes listeners, MQTT clients, timers, and database resources.
 5. **Validate the HTTP API.** Reject missing/unknown instances and malformed/out-of-range values with 4xx responses. Add authentication and network binding controls. Several API handlers assume undefined platform/thermostat properties; the Fastify reply helper plugin is not registered, and only the valves controller is currently attached.
 
 Further improvements:

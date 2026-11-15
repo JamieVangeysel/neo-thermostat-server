@@ -6,48 +6,90 @@ import { HttpListener } from './services/http-listener'
 import { API } from './services/api'
 
 export class Platform {
-  readonly logger: Logger = new Logger()
-  private _config: IConfigV3
-  public database: DatabaseService
-  public configService: ConfigService = new ConfigService(this)
-  private http: HttpListener = new HttpListener(this)
-  public thermostats: Thermostat[] = []
+  readonly logger: Logger
+  readonly configService: ConfigService
+  readonly database: DatabaseService
+  private readonly http: HttpListener
+  private readonly api: API
+  public readonly thermostats: Thermostat[]
+  private readonly _config: IConfigV3
+  private stopPromise?: Promise<void>
 
-  private api: API
-
-  constructor() {
-    this.logger.debug(`Platform.constructor() -- start`)
-    this.init().then(() => {
-      this.logger.debug(`Platform.constructor() -- end`)
-    })
+  private constructor(config: IConfigV3, configService: ConfigService, logger: Logger) {
+    this._config = config
+    this.configService = configService
+    this.logger = logger
+    this.database = new DatabaseService(this)
+    this.http = new HttpListener(this)
+    this.api = new API(this, config.port + 1)
+    this.thermostats = config.instances.map(instance => new Thermostat(this, instance.name ?? 'default'))
   }
 
-  private async init(): Promise<void> {
-    this.logger.debug(`Platform.init() -- init`)
-    this.configService.on('initialized', async (config: IConfigV3) => {
-      this.logger.debug(`Platform.init() -- configService emitted initialized`)
-      this._config = config
-      this.logger.log(`Platform.init() -- set config`, config)
-      this.database = new DatabaseService(this)
+  static async create(configPath?: string): Promise<Platform> {
+    const logger = new Logger()
+    const configService = new ConfigService(logger, configPath)
+    logger.debug('Platform.create() -- loading configuration')
+    const config = await configService.load()
+    logger.info(`Platform.create() -- configuration ready (v${config.version}, ${config.instances.length} thermostat instance(s))`)
+    const platform = new Platform(config, configService, logger)
+
+    try {
+      await platform.start()
+      return platform
+    } catch (error) {
       try {
-        await this.database.init()
-        this.logger.debug(`Platform.init() -- initialized new DatabaseService()`)
-      } catch (err) {
-        this.logger.error('Platform.init()', err.message)
+        await platform.stop()
+      } catch (stopError) {
+        logger.error('Platform startup cleanup failed', stopError)
       }
-      this.api = new API(this, config.port + 1)
-      this.logger.debug(`Platform.init() -- initialized new API()`)
-      await this.api.listen()
-      this.logger.debug(`Platform.init() -- API is now listening.`)
-      for (let thermostat of config.instances) {
-        this.thermostats.push(new Thermostat(this, thermostat.name))
+      throw error
+    }
+  }
+
+  private async start(): Promise<void> {
+    this.logger.info('Platform.start() -- start')
+    this.logger.debug('Platform.start() -- initializing optional database persistence')
+    await this.database.init()
+    this.logger.debug(`Platform.start() -- starting ${this.thermostats.length} thermostat instance(s)`)
+    for (const thermostat of this.thermostats) await thermostat.start()
+    this.logger.debug('Platform.start() -- starting API listener')
+    await this.api.listen('0.0.0.0')
+    this.logger.debug('Platform.start() -- starting HTTP listener')
+    await this.http.listen(this.config.hostname, this.config.port)
+    this.logger.info('Platform.start() -- ready')
+  }
+
+  stop(): Promise<void> {
+    if (!this.stopPromise) this.stopPromise = this.stopServices()
+    return this.stopPromise
+  }
+
+  private async stopServices(): Promise<void> {
+    this.logger.info('Platform.stop() -- start')
+    const failures: unknown[] = []
+    const stop = async (operation: () => Promise<void>) => {
+      try {
+        await operation()
+      } catch (error) {
+        failures.push(error)
       }
-      this.logger.debug(`Platform.init() -- initialized new Thermostat()`)
-      this.http.configure(config.hostname, config.port)
-      this.logger.log(`Platform.init() -- configure http instance`)
-    })
-    await this.configService.initialize()
-    this.logger.debug(`Platform.init() -- end`)
+    }
+
+    this.logger.debug('Platform.stop() -- closing HTTP listener')
+    await stop(() => this.http.close())
+    this.logger.debug('Platform.stop() -- closing API listener')
+    await stop(() => this.api.close())
+    for (const thermostat of [...this.thermostats].reverse()) {
+      this.logger.debug('Platform.stop() -- stopping thermostat service')
+      await stop(() => thermostat.stop())
+    }
+    this.logger.debug('Platform.stop() -- closing database service')
+    await stop(() => this.database.close())
+
+    if (failures.length > 0) {
+      throw new Error(`Platform shutdown had ${failures.length} failure(s): ${failures.map(String).join('; ')}`)
+    }
+    this.logger.info('Platform.stop() -- complete')
   }
 
   public get config(): IConfigV3 {
@@ -55,7 +97,7 @@ export class Platform {
   }
 
   public set config(config: IConfigV3) {
-    this.logger.info(`Platform.config set() -- current, next`, this._config, config)
-    this._config = config
+    this.logger.info('Platform.config updated')
+    Object.assign(this._config, config)
   }
 }

@@ -1,8 +1,8 @@
 # Neo Thermostat Server: implementation roadmap
 
-Status: Recommendation 2 has been applied to source and the generated bundle. This was not deployed and no live broker or relay was contacted. Recommendations 4, 5, and 6 remain proposals.
+Status: Recommendations 2 and 4 have been applied to source and the generated bundle. Neither change has been deployed or exercised against live hardware. Recommendations 5 and 6 remain proposals.
 
-This document records the original implementation roadmap and the completed Recommendation 2 slice; Recommendations 4, 5, and 6 remain proposed. The Recommendation 2 section below supersedes its earlier code sketches. Future changes should use tests-first and be reviewed before deployment.
+This document records the completed Recommendation 2 and 4 slices; Recommendations 5 and 6 remain proposed. Earlier Recommendation 2 and 4 code sketches are historical; applied source is authoritative. Future changes should use tests-first and be reviewed before deployment.
 
 Assumptions and constraints:
 
@@ -25,35 +25,17 @@ Assumptions and constraints:
 
 Do not combine all four changes in one release.
 
-1. Foundation: align the compiler/test runner and add isolated unit-test infrastructure. No hardware connections in tests.
-2. Recommendation 4: deterministic startup/config handling and optional database behavior. Run in a non-production copy of config with MQTT blocked/mocked.
+1. Foundation: `npm test` now runs isolated tests without hardware connections. TypeScript/Fastify toolchain alignment remains a separate follow-up.
+2. Recommendation 4 is implemented; keep startup/config regression tests in the suite.
 3. Recommendation 5: require authentication on both HTTP servers and make listener binding explicit. Deploy only after the calling client/reverse-proxy path is ready to send credentials.
 4. Recommendation 2 is implemented in source. Run the offline tests/build, then bench-test against a simulator before any supervised hardware testing.
 5. Recommendation 6: telemetry and comfort schedules in read-only/shadow mode first; only then allow scheduled setpoints to feed the existing controller.
 
-At each gate: review the diff, run unit tests and the bundle build to a temporary output, back up the deployment config, record the previous build/config version, and require explicit approval before touching a live service or relay. `index.min.js` was rebuilt for Recommendation 2; rebuild and review it again after future source changes.
+At each gate: review the diff, run unit tests and the bundle build to a temporary output, back up the deployment config, record the previous build/config version, and require explicit approval before touching a live service or relay. `index.min.js` was rebuilt for Recommendations 2 and 4; rebuild and review it again after future source changes.
 
 ## Foundation: tests and compiler compatibility
 
-The repository has no test script. The installed TypeScript 4.9.5 cannot parse the installed Fastify 5.5.0 declaration syntax, so `npx tsc --noEmit` currently fails before useful project diagnostics. First align TypeScript with Fastify 5, then add tests using Node's test runner through `tsx` (or an equivalent TypeScript-aware runner). The concrete command proposed below is `tsx --test tests/*.test.ts`.
-
-Proposed `package.json` script/dev dependencies (pin versions through the lockfile when implementing; verify compatibility and the full typecheck before accepting):
-
-```json
-{
-  "scripts": {
-    "build": "esbuild ./src/index.ts --bundle --platform=node --minify --packages=external --outfile=index.min.js",
-    "test": "tsx --test tests/*.test.ts",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "tsx": "<compatible pinned version>",
-    "typescript": "<Fastify-5-compatible pinned version>"
-  }
-}
-```
-
-Use exact versions rather than literal angle-bracket values in the eventual package manifest. Run tests with fake clocks and fake relay adapters; importing tests must never start `Platform`, open a broker connection, or listen on a network port.
+`npm test` uses Node 22's built-in test runner and TypeScript stripping. The project typecheck remains blocked by its TypeScript 4.9.5/Fastify 5.5.0 declaration mismatch and other existing type errors. The tests use temporary config files and loopback-only HTTP; they do not construct `Platform`, connect to MQTT/Mongo, or touch hardware.
 
 ## Recommendation 2: fail safe on bad/stale sensors and relay failures — applied
 
@@ -69,7 +51,9 @@ Implemented in `src/services/sensor-safety.ts`, `src/services/thermostat.ts`, `s
 
 Remaining limitation: without a source timestamp, a non-retained message is aged from local receipt time; delayed-but-non-retained sensor messages cannot be recognized as old. A retained message without a source timestamp is rejected, so a fresh live sample is needed after subscription. The code cannot prove the relay physically changed state; hardware testing and independent cutoffs remain required before deployment.
 
-## Recommendation 4: deterministic startup, config validation, optional database, graceful shutdown
+## Recommendation 4: deterministic startup, config validation, optional database, graceful shutdown — applied
+
+Implemented in `src/services/config-service.ts`, `src/platform.ts`, `src/index.ts`, `src/services/database.ts`, `src/services/http-listener.ts`, `src/services/api/index.ts`, `src/services/thermostat.ts`, `src/services/relais.ts`, and `src/services/weather-info.ts`. The design snippets below describe the original proposal; the applied code is authoritative. No production config or live service was opened.
 
 ### Configuration service
 

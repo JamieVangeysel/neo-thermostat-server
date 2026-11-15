@@ -1,6 +1,6 @@
 import * as http from 'node:http'
-import { Platform } from '../platform'
-import { Thermostat } from './thermostat'
+import type { Platform } from '../platform'
+import type { Thermostat } from './thermostat'
 
 const okResponse: any = {
   success: true
@@ -14,12 +14,14 @@ const valueResponse = (value: any): any => {
 
 export class HttpListener {
   private readonly platform: Platform
+  private server?: http.Server
 
   constructor(platform: Platform) {
     this.platform = platform
   }
 
-  configure(hostname: string, port: number) {
+  async listen(hostname: string, port: number): Promise<void> {
+    if (this.server?.listening) return
     this.platform.logger.debug(`HttpListener.configure() -- start`)
 
     const server = http.createServer((req: any, res: any): void => {
@@ -218,11 +220,39 @@ export class HttpListener {
       }
     })
 
-    server.listen(port, hostname, () => {
-      console.log(`HttpListener.configure() -- server listening on ${hostname}:${port}`)
+    this.server = server
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => {
+        server.removeListener('listening', onListening)
+        this.server = undefined
+        this.platform.logger.error(`HttpListener.listen() -- failed for ${hostname}:${port}`, error)
+        reject(error)
+      }
+      const onListening = () => {
+        server.removeListener('error', onError)
+        resolve()
+      }
+      server.once('error', onError)
+      server.once('listening', onListening)
+      server.listen(port, hostname)
     })
+    server.on('error', error => this.platform.logger.error('HTTP listener error', error))
+    this.platform.logger.info(`HttpListener.listen() -- server listening on ${hostname}:${port}`)
 
     this.platform.logger.debug(`HttpListener.configure() -- end`)
+  }
+
+  async close(): Promise<void> {
+    const server = this.server
+    if (!server) return
+    if (!server.listening) {
+      this.server = undefined
+      return
+    }
+    await new Promise<void>((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve())
+    })
+    this.server = undefined
   }
 
   getThermostat(instance_name?: string): Thermostat | undefined {
