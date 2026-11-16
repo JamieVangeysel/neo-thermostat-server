@@ -44,6 +44,22 @@ export function validateConfig(value: unknown): asserts value is IConfigV3 {
     if (typeof instance.temperatureSensor !== 'string' || instance.temperatureSensor.trim() === '') {
       throw new Error(`Invalid config: '${prefix}.temperatureSensor' is required`)
     }
+    if (instance.mqttTopics !== undefined) {
+      if (!isRecord(instance.mqttTopics)) throw new Error(`Invalid config: '${prefix}.mqttTopics' must be an object`)
+      for (const topicGroup of ['temperature', 'thermostatStatus']) {
+        const topics = instance.mqttTopics[topicGroup]
+        if (topics === undefined) continue
+        if (!Array.isArray(topics)) throw new Error(`Invalid config: '${prefix}.mqttTopics.${topicGroup}' must be an array`)
+        for (const [topicIndex, topic] of topics.entries()) {
+          if (typeof topic !== 'string' || topic.length === 0 || topic.trim() !== topic || /[\u0000\r\n]/.test(topic)) {
+            throw new Error(`Invalid config: '${prefix}.mqttTopics.${topicGroup}[${topicIndex}]' must be a non-empty exact topic`)
+          }
+          if (topicGroup === 'thermostatStatus' && /[+#]/.test(topic)) {
+            throw new Error(`Invalid config: '${prefix}.mqttTopics.thermostatStatus[${topicIndex}]' cannot contain publish wildcards`)
+          }
+        }
+      }
+    }
     if (!Array.isArray(instance.switches)) throw new Error(`Invalid config: '${prefix}.switches' must be an array`)
     const pins = new Set<number>()
     for (const [switchIndex, relay] of instance.switches.entries()) {

@@ -5,7 +5,10 @@
   "main": "src/index.js",
   "scripts": {
     "build": "esbuild ./src/index.ts --bundle --platform=node --minify --packages=external --outfile=index.min.js",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs"
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs",
+    "copy-datalog": "scp java@10.220.20.4:/home/java/neo-thermostat-server/data-log-default.csv ./data-log.csv",
+    "preheat:poc": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/preheat-poc-demo.mjs",
+    "thermal:phase-poc": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/thermal-phase-poc.mjs"
   },
   "repository": {
     "type": "git",

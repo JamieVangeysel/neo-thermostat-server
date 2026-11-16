@@ -1,4 +1,5 @@
 import type { ThermostatState } from './thermostat'
+import type { IThermostatMqttTopics } from './mqtt-topic-compat'
 export { ConfigService, validateConfig } from './config-service'
 export type { ConfigLogger } from './config-service'
 
@@ -28,6 +29,7 @@ export interface IConfigV3 {
 export interface IThermostatInstanceConfig {
   name?: string
   temperatureSensor: string
+  mqttTopics?: IThermostatMqttTopics
   thermostatState: ThermostatState
   switches: IRelaisSwitch[]
 }

@@ -3,6 +3,7 @@ import { EventEmitter } from 'events'
 import { IRelaisSwitch, IRelaisV2, SwitchStateEnum, SwitchTypeEnum } from './config'
 import { connect, MqttClient } from 'mqtt'
 import { executeFaultShutdown, publishWithBrokerAck, relayTransitionPlan } from './sensor-safety'
+import { mqttShadowStatusTopic, publishRetainedShadowStatus } from './thermal-shadow'
 
 export class Relais extends EventEmitter {
   platform: Platform
@@ -10,6 +11,7 @@ export class Relais extends EventEmitter {
   switches: IRelaisSwitch[]
   client?: MqttClient
   private readonly reportedRelayStates = new Map<number, { active: boolean; at: string }>()
+  private readonly retainedShadowStatuses = new Map<string, string>()
 
   constructor(platform: Platform, switches: IRelaisSwitch[]) {
     super()
@@ -56,6 +58,7 @@ export class Relais extends EventEmitter {
 
     client.on('connect', () => {
       this.platform.logger.info('Connected to MQTT server')
+      this.publishPendingShadowStatuses(client)
 
       client.subscribe([topic], err => {
         if (err) {
@@ -91,6 +94,35 @@ export class Relais extends EventEmitter {
 
       this.emit('update', this.switches)
     })
+  }
+
+  /** Publish a retained, read-only thermostat decision transcript. */
+  async publishShadowStatus(instanceName: string, status: unknown): Promise<void> {
+    const topic = mqttShadowStatusTopic(this.config.hostname, instanceName)
+    const payload = typeof status === 'string' ? status : JSON.stringify(status)
+    this.retainedShadowStatuses.set(topic, payload)
+    const client = this.client
+    if (!client?.connected) {
+      this.platform.logger.debug('Relais.publishShadowStatus() -- cached until MQTT reconnect', topic)
+      return
+    }
+    await this.publishRetainedStatus(client, topic, payload)
+  }
+
+  private publishPendingShadowStatuses(client: MqttClient): void {
+    for (const [topic, payload] of this.retainedShadowStatuses) {
+      void this.publishRetainedStatus(client, topic, payload).catch((): void => undefined)
+    }
+  }
+
+  private async publishRetainedStatus(client: MqttClient, topic: string, payload: string): Promise<void> {
+    try {
+      await publishRetainedShadowStatus(client, topic, payload)
+      this.platform.logger.debug('Relais.publishShadowStatus() -- broker accepted retained status', topic)
+    } catch (error) {
+      this.platform.logger.error('Relais.publishShadowStatus() -- failed to publish retained status', topic, error)
+      throw error
+    }
   }
 
   get mqttReportedRelays(): { pinIndex: number; type: string; state: 'ON' | 'OFF' | 'UNKNOWN'; reportedAt?: string }[] {

@@ -48,6 +48,8 @@ node index.min.js
 
 Development mode makes the Fastify route prefix `/test`; production uses `/v1` unless `APP_VERSION` is set. The Fastify listener is on port `config.port + 1` (default 8081 when `config.port` is 8080). The plain HTTP listener uses `config.hostname` and `config.port`.
 
+Predictive preheat prototypes are shadow-only and issue no relay commands. Run `npm run preheat:poc` for the synthetic threshold example; run `npm run thermal:phase-poc -- --csv /path/to/data-log.csv` for deterministic per-switch coast/lag analysis with January training and February holdout. The runtime transcript is retained on `<relais.hostname>/thermostat/<encoded-instance-name>/preheat-shadow/status`. See [`docs/preheat-poc.md`](docs/preheat-poc.md) and [`docs/thermal-response-poc.md`](docs/thermal-response-poc.md).
+
 ## Configuration
 
 `config.json` is ignored by Git. Do not publish it: it can contain a weather API key, sensor/device identifiers, database credentials, and home network details. Relevant version-3 fields are:

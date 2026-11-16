@@ -4,6 +4,11 @@ import { FileSystem } from './filesystem'
 import { OpenWeatherMapResponse, WeatherInfoService } from './weather-info'
 import { isCoolType, isHeatType, IThermostatInstanceConfig, SwitchTypeEnum } from './config'
 import { connect, MqttClient } from 'mqtt'
+import { parseThermostatCsv } from './preheat-poc'
+import { analyzeThermalTransitions } from './thermal-response-poc'
+import type { ThermalTransitionResponse, ThermalTransitionSample } from './thermal-response-poc'
+import { buildShadowTranscript } from './thermal-shadow'
+import { resolveTemperatureTopics, resolveThermostatStatusTopics } from './mqtt-topic-compat'
 import {
   DEFAULT_SENSOR_STALE_AFTER_MS,
   hasFreshSensorSample,
@@ -25,6 +30,25 @@ export class Thermostat {
   private lastValidSensorAtMs?: number
   private lastSampledAtMs?: number
   private sensorWatchdog?: NodeJS.Timeout
+  private shadowProfileRefreshTimer?: NodeJS.Timeout
+  private shadowResponses: ThermalTransitionResponse[] = []
+  private shadowHistorySampleCount = 0
+  private shadowProfileBuiltAt: string | null = null
+  private shadowProfileSource = 'not-loaded'
+  private shadowHistoryStartAt: string | null = null
+  private shadowHistoryEndAt: string | null = null
+  private shadowPhaseSamples: ThermalTransitionSample[] = []
+  private shadowPhaseStartAtMs?: number
+  private shadowPhaseState?: 'HEAT' | 'OFF'
+  private shadowPhaseTransitionKnown = false
+  private shadowPhaseInitialHeatIndexC?: number
+  private shadowPhaseInitialRawTemperatureC?: number
+  private shadowPhaseMinHeatIndexC?: number
+  private shadowPhaseMaxHeatIndexC?: number
+  private shadowPhaseMinRawTemperatureC?: number
+  private shadowPhaseMaxRawTemperatureC?: number
+  private lastShadowDecisionSignature = ''
+  private lastShadowPublishedAtMs = 0
   private started = false
   private sensorErrorStatus: ThermostatErrorStatus | null = null
   private relayErrorStatus: ThermostatErrorStatus | null = null
@@ -70,6 +94,11 @@ export class Thermostat {
       await this.fs.writeFile(logPath, Buffer.from('date,state,target-state,temperature,target-temperature,outside-temperature,heat-index\n'))
       await this.fs.writeAppendFile(logPath, Buffer.from(`${new Date().toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
     }
+    void this.refreshShadowPhaseProfile(logPath).then(() => this.publishShadowTranscript(true))
+    this.shadowProfileRefreshTimer = setInterval(() => {
+      void this.refreshShadowPhaseProfile(logPath).then(() => this.publishShadowTranscript(true))
+    }, 24 * 60 * 60 * 1000)
+    this.shadowProfileRefreshTimer.unref()
 
     this.weatherInfo = new WeatherInfoService(this.platform)
     this.weatherInfo.on('error', err => this.platform.logger.error('Weather update failed', err))
@@ -86,23 +115,24 @@ export class Thermostat {
       this.currentForecast = forecast
       this.platform.logger.debug('Outside heat index:', this.calculateHeatIndex(forecast.main.temp, forecast.main.humidity))
       this.platform.logger.debug('Outside wind chill factor:', this.calculateWindChillFactor(forecast.main.temp, forecast.wind.speed))
+      void this.publishShadowTranscript(true)
     })
 
     await this.relais.start()
     await this.weatherInfo.start()
 
-    const topic: string = (this.instance.temperatureSensor === '68bc45c0f8dd63bd13a54c511242b2eead672bcbb3358c2e747a95b189bff31e1450908a61ed6ea3f33efb69c2b510f7' ? '3B2702' : '03D3CE') + '/sensor'
+    const topics = resolveTemperatureTopics(this.instance)
     const sensorClient = connect('mqtt://localhost:1883')
     this.sensorClient = sensorClient
     sensorClient.on('connect', () => {
       this.platform.logger.info('Connected to MQTT server')
-      sensorClient.subscribe([topic], err => {
+      sensorClient.subscribe(topics, err => {
         if (err) {
-          this.platform.logger.error('Could not subscribe to thermostat sensor topic', topic, err)
-          void this.enterSensorFault('SENSOR_MQTT_ERROR', `Could not subscribe to sensor topic: ${err.message}`)
+          this.platform.logger.error('Could not subscribe to thermostat sensor topics', topics, err)
+          void this.enterSensorFault('SENSOR_MQTT_ERROR', `Could not subscribe to sensor topics: ${err.message}`)
           return
         }
-        this.platform.logger.debug(`Subscribe to topic '${topic}'`)
+        this.platform.logger.debug(`Subscribed to thermostat sensor topics: ${topics.join(', ')}`)
       })
     })
     sensorClient.on('error', err => {
@@ -126,6 +156,235 @@ export class Thermostat {
     this.sensorWatchdog.unref()
     this.started = true
     this.platform.logger.info(`Thermostat.start() -- instance '${this.instance_name}' started`)
+    void this.publishShadowTranscript(true)
+  }
+
+  private async refreshShadowPhaseProfile(logPath: string): Promise<void> {
+    try {
+      if (!(await this.fs.exists(logPath))) return
+      const file = await this.fs.readFile(logPath)
+      const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000
+      const parsed = parseThermostatCsv(file.toString('utf8'))
+      const samples: ThermalTransitionSample[] = []
+      for (const sample of parsed) {
+        if (sample.timestampMs < cutoff || sample.targetTemperatureC === undefined) continue
+        samples.push({ ...sample, targetTemperatureC: sample.targetTemperatureC })
+      }
+      const responses = analyzeThermalTransitions(samples, {
+        binMinutes: 5,
+        reversalThresholdC: 0.1,
+        confirmationBins: 3,
+        maxSampleGapMinutes: 5
+      })
+      this.shadowHistorySampleCount = samples.length
+      this.shadowHistoryStartAt = samples.length > 0 ? new Date(samples[0].timestampMs).toISOString() : null
+      this.shadowHistoryEndAt = samples.length > 0 ? new Date(samples[samples.length - 1].timestampMs).toISOString() : null
+      this.shadowProfileBuiltAt = new Date().toISOString()
+      this.shadowProfileSource = `data-log-${this.instance_name}.csv (rolling 365 days)`
+      this.seedShadowPhase(samples, responses)
+      this.platform.logger.info('Thermostat shadow phase profile refreshed', {
+        instance: this.instance_name,
+        samples: this.shadowHistorySampleCount,
+        completedTransitions: this.shadowResponses.length
+      })
+    } catch (error) {
+      this.platform.logger.warn('Could not refresh thermostat shadow phase profile; using previously loaded profile', error)
+    }
+  }
+
+  private seedShadowPhase(samples: ThermalTransitionSample[], responses: ThermalTransitionResponse[]): void {
+    if (samples.length === 0) {
+      this.shadowResponses = []
+      this.shadowPhaseSamples = []
+      this.shadowPhaseStartAtMs = undefined
+      this.shadowPhaseState = undefined
+      this.shadowPhaseTransitionKnown = false
+      return
+    }
+
+    const lastIndex = samples.length - 1
+    let phaseStartIndex = lastIndex
+    while (phaseStartIndex > 0) {
+      const previous = samples[phaseStartIndex - 1]
+      const current = samples[phaseStartIndex]
+      if (previous.heatingOn !== current.heatingOn || current.timestampMs - previous.timestampMs > 5 * 60_000) break
+      phaseStartIndex--
+    }
+
+    const currentPhaseStart = samples[phaseStartIndex]
+    const precedingSample = phaseStartIndex > 0 ? samples[phaseStartIndex - 1] : undefined
+    this.shadowPhaseStartAtMs = currentPhaseStart.timestampMs
+    this.shadowPhaseState = currentPhaseStart.heatingOn ? 'HEAT' : 'OFF'
+    this.shadowPhaseTransitionKnown = Boolean(precedingSample &&
+      precedingSample.heatingOn !== currentPhaseStart.heatingOn &&
+      currentPhaseStart.timestampMs - precedingSample.timestampMs <= 5 * 60_000)
+    this.shadowPhaseSamples = samples.slice(Math.max(0, phaseStartIndex - 1))
+    this.shadowPhaseInitialHeatIndexC = currentPhaseStart.heatIndexC
+    this.shadowPhaseInitialRawTemperatureC = currentPhaseStart.rawTemperatureC
+    this.shadowPhaseMinHeatIndexC = currentPhaseStart.heatIndexC
+    this.shadowPhaseMaxHeatIndexC = currentPhaseStart.heatIndexC
+    this.shadowPhaseMinRawTemperatureC = currentPhaseStart.rawTemperatureC
+    this.shadowPhaseMaxRawTemperatureC = currentPhaseStart.rawTemperatureC
+    for (const sample of samples.slice(phaseStartIndex + 1)) this.updateShadowPhaseExtrema(sample)
+
+    this.shadowResponses = responses.filter(response => response.transitionAtMs < currentPhaseStart.timestampMs)
+  }
+
+  private recordShadowSample(timestampMs: number): void {
+    if (this.state.targetHeatingCoolingState !== HeatingCoolingStateEnum.HEAT) {
+      this.shadowPhaseSamples = []
+      this.shadowPhaseStartAtMs = undefined
+      this.shadowPhaseState = undefined
+      this.shadowPhaseTransitionKnown = false
+      return
+    }
+
+    const sample: ThermalTransitionSample = {
+      timestampMs,
+      heatIndexC: this.HeatIndex,
+      rawTemperatureC: this.CurrentTemperature,
+      outdoorTempC: this.currentForecast?.main?.temp ?? 0,
+      targetTemperatureC: this.TargetTemperature,
+      heatingOn: this.state.currentHeatingCoolingState === HeatingCoolingStateEnum.HEAT
+    }
+    if (this.shadowHistoryStartAt === null) this.shadowHistoryStartAt = new Date(sample.timestampMs).toISOString()
+    if (this.shadowHistoryEndAt === null || sample.timestampMs > Date.parse(this.shadowHistoryEndAt)) {
+      this.shadowHistoryEndAt = new Date(sample.timestampMs).toISOString()
+    }
+    const previous = this.shadowPhaseSamples[this.shadowPhaseSamples.length - 1]
+    if (previous && sample.heatingOn !== previous.heatingOn && sample.timestampMs <= previous.timestampMs) {
+      sample.timestampMs = previous.timestampMs + 1
+    }
+    if (!previous || sample.timestampMs - previous.timestampMs > 5 * 60_000) {
+      this.shadowPhaseSamples = [sample]
+      this.startShadowPhase(sample, false)
+      return
+    }
+
+    if (sample.heatingOn !== previous.heatingOn) {
+      const completed = this.shadowPhaseStartAtMs === undefined || !this.shadowPhaseTransitionKnown
+        ? undefined
+        : analyzeThermalTransitions([...this.shadowPhaseSamples, sample], {
+            binMinutes: 5,
+            reversalThresholdC: 0.1,
+            confirmationBins: 3,
+            maxSampleGapMinutes: 5
+          }).find(response => response.transitionAtMs === this.shadowPhaseStartAtMs)
+      if (completed && !this.shadowResponses.some(response => response.transitionAtMs === completed.transitionAtMs)) {
+        this.shadowResponses.push(completed)
+        this.shadowProfileBuiltAt = new Date().toISOString()
+      }
+      this.shadowPhaseSamples = [previous, sample]
+      this.startShadowPhase(sample, true)
+      return
+    }
+
+    this.shadowPhaseSamples.push(sample)
+    this.updateShadowPhaseExtrema(sample)
+    this.shadowHistorySampleCount++
+  }
+
+  private startShadowPhase(sample: ThermalTransitionSample, transitionKnown: boolean): void {
+    this.shadowPhaseStartAtMs = sample.timestampMs
+    this.shadowPhaseState = sample.heatingOn ? 'HEAT' : 'OFF'
+    this.shadowPhaseTransitionKnown = transitionKnown
+    this.shadowPhaseInitialHeatIndexC = sample.heatIndexC
+    this.shadowPhaseInitialRawTemperatureC = sample.rawTemperatureC
+    this.shadowPhaseMinHeatIndexC = sample.heatIndexC
+    this.shadowPhaseMaxHeatIndexC = sample.heatIndexC
+    this.shadowPhaseMinRawTemperatureC = sample.rawTemperatureC
+    this.shadowPhaseMaxRawTemperatureC = sample.rawTemperatureC
+    this.shadowHistorySampleCount++
+  }
+
+  private updateShadowPhaseExtrema(sample: ThermalTransitionSample): void {
+    this.shadowPhaseMinHeatIndexC = Math.min(this.shadowPhaseMinHeatIndexC ?? sample.heatIndexC, sample.heatIndexC)
+    this.shadowPhaseMaxHeatIndexC = Math.max(this.shadowPhaseMaxHeatIndexC ?? sample.heatIndexC, sample.heatIndexC)
+    if (sample.rawTemperatureC !== undefined) {
+      this.shadowPhaseMinRawTemperatureC = Math.min(this.shadowPhaseMinRawTemperatureC ?? sample.rawTemperatureC, sample.rawTemperatureC)
+      this.shadowPhaseMaxRawTemperatureC = Math.max(this.shadowPhaseMaxRawTemperatureC ?? sample.rawTemperatureC, sample.rawTemperatureC)
+    }
+  }
+
+  private shadowCurrentPhase(now: number) {
+    if (this.shadowPhaseStartAtMs === undefined || this.shadowPhaseState === undefined) return null
+    return {
+      state: this.shadowPhaseState,
+      startedAtMs: this.shadowPhaseStartAtMs,
+      elapsedMinutes: Math.max(0, (now - this.shadowPhaseStartAtMs) / 60_000),
+      initialHeatIndexC: this.shadowPhaseInitialHeatIndexC ?? null,
+      currentHeatIndexC: this.HeatIndex,
+      minimumHeatIndexC: this.shadowPhaseMinHeatIndexC ?? null,
+      maximumHeatIndexC: this.shadowPhaseMaxHeatIndexC ?? null,
+      heatIndexDeltaC: this.HeatIndex - (this.shadowPhaseInitialHeatIndexC ?? this.HeatIndex),
+      initialRawTemperatureC: this.shadowPhaseInitialRawTemperatureC ?? null,
+      currentRawTemperatureC: this.CurrentTemperature,
+      rawTemperatureDeltaC: this.CurrentTemperature - (this.shadowPhaseInitialRawTemperatureC ?? this.CurrentTemperature),
+      minimumRawTemperatureC: this.shadowPhaseMinRawTemperatureC ?? null,
+      maximumRawTemperatureC: this.shadowPhaseMaxRawTemperatureC ?? null
+    }
+  }
+
+  private async publishShadowTranscript(force: boolean = false, lifecycle?: 'starting' | 'running' | 'stopping' | 'stopped'): Promise<void> {
+    try {
+      const now = Date.now()
+      const currentLifecycle = lifecycle ?? (this.started ? 'running' : 'starting')
+      const thresholds = this.thresholds
+      const sensorFresh = hasFreshSensorSample(this.lastValidSensorAtMs, now, this.sensorMaxAgeMs)
+      const transcript = buildShadowTranscript({
+        instanceName: this.instance_name,
+        nowMs: now,
+        lifecycle: currentLifecycle,
+        currentRawTemperatureC: this.CurrentTemperature,
+        currentHeatIndexC: this.HeatIndex,
+        relativeHumidityPct: this.CurrentRelativeHumidity,
+        targetHeatIndexC: this.TargetTemperature,
+        outdoorTempC: this.currentForecast?.main?.temp ?? null,
+        targetMode: this.heatingCoolingStateName(this.state.targetHeatingCoolingState),
+        currentState: this.heatingCoolingStateName(this.state.currentHeatingCoolingState),
+        sensorFresh,
+        sampleAgeMs: this.lastValidSensorAtMs === undefined ? null : Math.max(0, now - this.lastValidSensorAtMs),
+        baselineHeatingMinC: thresholds.heatingMin,
+        baselineHeatingMaxC: thresholds.heatingMax,
+        phaseResponses: this.shadowResponses,
+        profileBuiltAt: this.shadowProfileBuiltAt,
+        historySampleCount: this.shadowHistorySampleCount,
+        historySource: this.shadowProfileSource,
+        historyStartAt: this.shadowHistoryStartAt,
+        historyEndAt: this.shadowHistoryEndAt,
+        currentPhase: this.shadowCurrentPhase(now),
+        mqttReportedRelays: this.relais.mqttReportedRelays,
+        errorStatus: this.ErrorStatus
+      })
+      const signature = JSON.stringify({
+        lifecycle: transcript.lifecycle,
+        targetMode: transcript.targetMode,
+        currentState: transcript.currentState,
+        sensorFresh: transcript.sensorFresh,
+        baselineAction: transcript.baselineAction,
+        shadowAction: transcript.shadowAction,
+        thresholds: transcript.thresholds.shadow,
+        profileReady: transcript.profile.ready,
+        error: this.ErrorStatus?.code ?? null
+      })
+      if (!force && signature === this.lastShadowDecisionSignature && now - this.lastShadowPublishedAtMs < 5 * 60_000) return
+      this.lastShadowDecisionSignature = signature
+      this.lastShadowPublishedAtMs = now
+      await this.relais.publishShadowStatus(this.instance_name, transcript)
+    } catch (error) {
+      // Shadow telemetry must never affect thermostat control.
+      this.platform.logger.warn('Thermostat shadow transcript publish failed; control is unchanged', error)
+    }
+  }
+
+  private heatingCoolingStateName(state: HeatingCoolingStateEnum): string {
+    switch (state) {
+      case HeatingCoolingStateEnum.OFF: return 'OFF'
+      case HeatingCoolingStateEnum.HEAT: return 'HEAT'
+      case HeatingCoolingStateEnum.COOL: return 'COOL'
+      case HeatingCoolingStateEnum.AUTO: return 'AUTO'
+      default: return 'UNKNOWN'
+    }
   }
 
   private async handleSensorMessage(payload: Buffer, retained: boolean): Promise<void> {
@@ -151,6 +410,7 @@ export class Thermostat {
     this.state.currentRelativeHumidity = checked.sample.relativeHumidityPct
 
     await this.fs.writeAppendFile(`data-log-${this.instance_name}.csv`, Buffer.from(`${date.toISOString().replace('T', ' ').substring(0, 19)},${this.state.currentHeatingCoolingState},${this.state.targetHeatingCoolingState},${this.state.currentTemperature},${this.state.targetTemperature},${this.currentForecast ? this.currentForecast.main.temp : 0},${this.HeatIndex}\n`))
+    this.recordShadowSample(date.getTime())
 
     try {
       await this.addHistoryEntry(date, checked.sample.temperatureC)
@@ -189,18 +449,22 @@ export class Thermostat {
           ? 'MQTT broker accepted QoS 1 publishes; physical relay acknowledgement is unavailable'
           : 'One or more OFF commands failed at the MQTT broker; physical relay state is unknown'
     }
+    void this.publishShadowTranscript(true)
   }
 
   public async stop(): Promise<void> {
     this.platform.logger.info(`Thermostat.stop() -- stopping instance '${this.instance_name}'`)
     if (this.sensorWatchdog) clearInterval(this.sensorWatchdog)
+    if (this.shadowProfileRefreshTimer) clearInterval(this.shadowProfileRefreshTimer)
     this.sensorWatchdog = undefined
+    this.shadowProfileRefreshTimer = undefined
     const sensorClient = this.sensorClient
     this.sensorClient = undefined
     if (sensorClient) await new Promise<void>(resolve => sensorClient.end(true, {}, () => resolve()))
     await this.weatherInfo?.stop()
-    await this.relais.stop()
     this.started = false
+    await this.publishShadowTranscript(true, 'stopped')
+    await this.relais.stop()
     this.platform.logger.info(`Thermostat.stop() -- instance '${this.instance_name}' stopped`)
   }
 
@@ -282,11 +546,13 @@ export class Thermostat {
   async evaluateChanges() {
     this.platform.logger.debug('Thermostat.evaluateChanges() -- start')
     const now = Date.now()
+    const currentStateBeforeEvaluation = this.state.currentHeatingCoolingState
     if (!hasFreshSensorSample(this.lastValidSensorAtMs, now, this.sensorMaxAgeMs)) {
       const startupAgeExpired = this.sensorStartedAtMs !== undefined && now - this.sensorStartedAtMs >= this.sensorMaxAgeMs
       if (this.lastValidSensorAtMs !== undefined || startupAgeExpired) {
         await this.enterSensorFault('SENSOR_STALE', 'Automatic control is inhibited because the sensor sample is stale')
       }
+      void this.publishShadowTranscript(true)
       return
     }
 
@@ -386,6 +652,10 @@ export class Thermostat {
       } else {
         this.platform.logger.error('Thermostat.evaluateChanges() -- Error while trying to save current config to disk!')
       }
+      if (this.state.currentHeatingCoolingState !== currentStateBeforeEvaluation) {
+        this.recordShadowSample(Date.now())
+      }
+      void this.publishShadowTranscript()
     }
   }
 
@@ -740,7 +1010,9 @@ export class Thermostat {
   }
 
   set TargetHeatingCoolingState(value: HeatingCoolingStateEnum) {
+    const changed = this.state.targetHeatingCoolingState !== value
     this.state.targetHeatingCoolingState = value
+    if (changed) this.recordShadowSample(Date.now())
     this.evaluateChanges()
   }
 

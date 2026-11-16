@@ -70,6 +70,31 @@ test('valid v3 config without MongoDB passes validation', () => {
   assert.doesNotThrow(() => configModule.validateConfig(v3Config()))
 })
 
+test('validates optional legacy and site MQTT topic arrays per thermostat instance', () => {
+  assert.ok(configModule, 'config module should be independently importable')
+  const instance = {
+    name: 'default',
+    temperatureSensor: 'sensor-default',
+    thermostatState: {
+      currentTemperature: 20,
+      currentRelativeHumidity: 45,
+      targetTemperature: 20,
+      currentHeatingCoolingState: 0,
+      targetHeatingCoolingState: 1,
+      temperatureDisplayUnits: 0
+    },
+    switches: [],
+    mqttTopics: {
+      temperature: ['site/home/master-bedroom/climate/temperature'],
+      thermostatStatus: ['site/home/living-space/climate/thermostat']
+    }
+  }
+  assert.doesNotThrow(() => configModule.validateConfig(v3Config({ instances: [instance] })))
+  assert.throws(() => configModule.validateConfig(v3Config({
+    instances: [{ ...instance, mqttTopics: { temperature: [''], thermostatStatus: ['site/home/living-space/climate/thermostat'] } }]
+  })), /mqttTopics|topic/i)
+})
+
 test('invalid ports and malformed thermostat records are rejected', () => {
   assert.ok(configModule, 'config module should be independently importable')
   assert.throws(() => configModule.validateConfig(v3Config({ port: 65535 })), /port/i)
