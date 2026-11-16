@@ -21,7 +21,7 @@ The original design notes described a shared heat element and hot-water relay. T
 1. `src/index.ts` awaits `Platform.create()`; configuration is loaded and validated before services are constructed or listeners are opened.
 2. `ConfigService.load()` parses and validates `./config.json`. Version-2 configs are backed up and atomically migrated to v3. A missing file gets an inert v3 template with no thermostat instances; malformed/invalid files fail before services start.
 3. Each configured thermostat's `start()` creates its relay/sensor MQTT clients and subscribes to a temperature topic. Current topic selection is hard-coded around one sensor ID; it is not a general mapping from configured sensor IDs to MQTT topics.
-4. Temperature messages update in-memory state, append a CSV row, update a JSON history file, and call `evaluateChanges()`.
+4. Temperature messages update in-memory state, append a CSV row, enter a four-hour temperature window capped at 1,024 samples, and call `evaluateChanges()`. `temperature-history.json` snapshots are persisted no more than once every 15 minutes.
 5. `evaluateChanges()` uses a fresh validated sensor sample and `HeatIndex` as the comfort/control value. Commands go to `relais.hostname/relais/<pin>` at QoS 1; incoming ON/OFF messages are the available MQTT-reported relay state. A broker PUBACK is not proof of physical relay actuation.
 6. `WeatherInfoService` optionally polls OpenWeatherMap every five minutes. The coordinates are currently hard-coded in `src/services/weather-info.ts`.
 7. The plain Node HTTP listener binds to the configured host/port. A separate Fastify server binds to `0.0.0.0` on `port + 1`.
