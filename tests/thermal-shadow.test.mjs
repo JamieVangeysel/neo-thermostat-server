@@ -78,12 +78,8 @@ test('uses baseline and explains unknown-weather or insufficient-history fallbac
   assert.match(transcript.reason, /unknown|insufficient/i)
 })
 
-test('publishes to a retained status topic at QoS 1', async () => {
+test('publishes a configured status topic retained at QoS 1', async () => {
   assert.ok(moduleUnderTest, 'thermal shadow helper should exist')
-  assert.equal(
-    moduleUnderTest.mqttShadowStatusTopic('home', 'living room'),
-    'home/thermostat/living%20room/preheat-shadow/status'
-  )
   let captured
   const client = {
     publish(topic, payload, options, callback) {
@@ -91,9 +87,9 @@ test('publishes to a retained status topic at QoS 1', async () => {
       callback(null)
     }
   }
-  await moduleUnderTest.publishRetainedShadowStatus(client, 'home/status', '{"actuation":"none"}')
+  await moduleUnderTest.publishRetainedShadowStatus(client, 'site/home/living-space/climate/thermostat', '{"actuation":"none"}')
   assert.deepEqual(captured, {
-    topic: 'home/status',
+    topic: 'site/home/living-space/climate/thermostat',
     payload: '{"actuation":"none"}',
     options: { qos: 1, retain: true }
   })

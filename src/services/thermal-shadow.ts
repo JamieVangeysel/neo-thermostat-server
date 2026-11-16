@@ -166,10 +166,6 @@ export function buildShadowTranscript(input: ShadowDecisionInput): Record<string
   }
 }
 
-export function mqttShadowStatusTopic(topicPrefix: string, instanceName: string): string {
-  return `${topicPrefix}/thermostat/${encodeURIComponent(instanceName)}/preheat-shadow/status`
-}
-
 export interface RetainedStatusPublisher {
   publish(
     topic: string,

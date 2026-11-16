@@ -54,8 +54,8 @@ export function validateConfig(value: unknown): asserts value is IConfigV3 {
           if (typeof topic !== 'string' || topic.length === 0 || topic.trim() !== topic || /[\u0000\r\n]/.test(topic)) {
             throw new Error(`Invalid config: '${prefix}.mqttTopics.${topicGroup}[${topicIndex}]' must be a non-empty exact topic`)
           }
-          if (topicGroup === 'thermostatStatus' && /[+#]/.test(topic)) {
-            throw new Error(`Invalid config: '${prefix}.mqttTopics.thermostatStatus[${topicIndex}]' cannot contain publish wildcards`)
+          if (/[+#]/.test(topic)) {
+            throw new Error(`Invalid config: '${prefix}.mqttTopics.${topicGroup}[${topicIndex}]' must be an exact topic without wildcards`)
           }
         }
       }

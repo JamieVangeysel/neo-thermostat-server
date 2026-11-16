@@ -1,12 +1,22 @@
 # Thermal phase-response POC
 
-This deterministic, read-only analysis is also integrated into the running thermostat in shadow mode. It does not alter `Thermostat.evaluateChanges()` or relay commands. The runtime publishes a retained QoS 1 decision transcript to:
+This deterministic, read-only analysis is also integrated into the running thermostat in shadow mode. It does not alter `Thermostat.evaluateChanges()` or relay commands. Sensor subscriptions retain the legacy topic selected from `temperatureSensor` and add every exact topic in the instance's optional `mqttTopics.temperature` array. The shadow transcript is published retained at QoS 1 only to the exact topics in `mqttTopics.thermostatStatus`; no topic is synthesized from the broker hostname or instance name. Existing relay command/status topics are unchanged.
 
-```text
-<relais.hostname>/thermostat/<encoded-instance-name>/preheat-shadow/status
+Add these fields to the relevant existing `instances[]` record (other required instance properties are omitted):
+
+```json
+{
+  "name": "default",
+  "mqttTopics": {
+    "temperature": ["site/home/master-bedroom/climate/temperature"],
+    "thermostatStatus": ["site/home/living-space/climate/thermostat"]
+  }
+}
 ```
 
-Subscribe remotely to that topic to read the latest status. It is published at startup, when mode/state/recommendation/fault changes, at least every five minutes, after a profile refresh, and during shutdown. MQTT publish acknowledgements only confirm broker acceptance; they do not confirm pump or relay actuation. The runtime reads `data-log-<instance>.csv` (up to 365 days) at startup, adds completed phases as state changes, and reloads the profile daily. The retained transcript includes current inputs, current phase drift, profile counts/p90s, baseline and shadow thresholds, comparison/reason, sensor/relay fault status, and `actuation: none`.
+For the apartment instance, configure `"thermostatStatus": ["site/apt/living-room/climate/thermostat"]`. Add any legacy status path to the same array if a legacy consumer needs the transcript too. `temperature` accepts multiple exact paths, allowing legacy and `site/...` sensor topics to be listened to simultaneously. If `thermostatStatus` is absent or empty, no transcript is published and the app logs a warning; the old relay topic behavior remains unaffected.
+
+The configured status topic receives the latest transcript at startup, when mode/state/recommendation/fault changes, at least every five minutes, after profile refresh, and during shutdown. MQTT publish acknowledgements only confirm broker acceptance; they do not confirm pump or relay actuation. The runtime reads `data-log-<instance>.csv` (up to 365 days) at startup, adds completed phases as state changes, and reloads the profile daily. The retained transcript includes current inputs, current phase drift, profile counts/p90s, baseline and shadow thresholds, comparison/reason, sensor/relay fault status, and `actuation: none`.
 
 Run the offline January-training/February-holdout report with:
 ```sh

@@ -49,6 +49,7 @@ export class Thermostat {
   private shadowPhaseMaxRawTemperatureC?: number
   private lastShadowDecisionSignature = ''
   private lastShadowPublishedAtMs = 0
+  private shadowStatusTopicsWarningLogged = false
   private started = false
   private sensorErrorStatus: ThermostatErrorStatus | null = null
   private relayErrorStatus: ThermostatErrorStatus | null = null
@@ -327,6 +328,14 @@ export class Thermostat {
 
   private async publishShadowTranscript(force: boolean = false, lifecycle?: 'starting' | 'running' | 'stopping' | 'stopped'): Promise<void> {
     try {
+      const statusTopics = resolveThermostatStatusTopics(this.instance)
+      if (statusTopics.length === 0) {
+        if (!this.shadowStatusTopicsWarningLogged) {
+          this.platform.logger.warn(`No MQTT thermostat status topics configured for instance '${this.instance_name}'`)
+          this.shadowStatusTopicsWarningLogged = true
+        }
+        return
+      }
       const now = Date.now()
       const currentLifecycle = lifecycle ?? (this.started ? 'running' : 'starting')
       const thresholds = this.thresholds
@@ -370,7 +379,7 @@ export class Thermostat {
       if (!force && signature === this.lastShadowDecisionSignature && now - this.lastShadowPublishedAtMs < 5 * 60_000) return
       this.lastShadowDecisionSignature = signature
       this.lastShadowPublishedAtMs = now
-      await this.relais.publishShadowStatus(this.instance_name, transcript)
+      await this.relais.publishShadowStatus(statusTopics, transcript)
     } catch (error) {
       // Shadow telemetry must never affect thermostat control.
       this.platform.logger.warn('Thermostat shadow transcript publish failed; control is unchanged', error)

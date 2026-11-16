@@ -3,7 +3,7 @@ import { EventEmitter } from 'events'
 import { IRelaisSwitch, IRelaisV2, SwitchStateEnum, SwitchTypeEnum } from './config'
 import { connect, MqttClient } from 'mqtt'
 import { executeFaultShutdown, publishWithBrokerAck, relayTransitionPlan } from './sensor-safety'
-import { mqttShadowStatusTopic, publishRetainedShadowStatus } from './thermal-shadow'
+import { publishRetainedShadowStatus } from './thermal-shadow'
 
 export class Relais extends EventEmitter {
   platform: Platform
@@ -96,17 +96,18 @@ export class Relais extends EventEmitter {
     })
   }
 
-  /** Publish a retained, read-only thermostat decision transcript. */
-  async publishShadowStatus(instanceName: string, status: unknown): Promise<void> {
-    const topic = mqttShadowStatusTopic(this.config.hostname, instanceName)
-    const payload = typeof status === 'string' ? status : JSON.stringify(status)
-    this.retainedShadowStatuses.set(topic, payload)
+  /** Publish a retained, read-only thermostat decision transcript to configured topics. */
+  async publishShadowStatus(topics: string[], status: unknown): Promise<void> {
+    if (topics.length === 0) return
+    const serialized = typeof status === 'string' ? status : JSON.stringify(status)
+    if (typeof serialized !== 'string') throw new Error('Shadow status could not be serialized')
+    for (const topic of topics) this.retainedShadowStatuses.set(topic, serialized)
     const client = this.client
     if (!client?.connected) {
-      this.platform.logger.debug('Relais.publishShadowStatus() -- cached until MQTT reconnect', topic)
+      this.platform.logger.debug('Relais.publishShadowStatus() -- cached until MQTT reconnect', topics)
       return
     }
-    await this.publishRetainedStatus(client, topic, payload)
+    await Promise.all(topics.map(topic => this.publishRetainedStatus(client, topic, serialized)))
   }
 
   private publishPendingShadowStatuses(client: MqttClient): void {

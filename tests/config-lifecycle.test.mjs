@@ -93,6 +93,9 @@ test('validates optional legacy and site MQTT topic arrays per thermostat instan
   assert.throws(() => configModule.validateConfig(v3Config({
     instances: [{ ...instance, mqttTopics: { temperature: [''], thermostatStatus: ['site/home/living-space/climate/thermostat'] } }]
   })), /mqttTopics|topic/i)
+  assert.throws(() => configModule.validateConfig(v3Config({
+    instances: [{ ...instance, mqttTopics: { temperature: ['site/home/+/climate/temperature'] } }]
+  })), /wildcard|exact topic/i)
 })
 
 test('invalid ports and malformed thermostat records are rejected', () => {

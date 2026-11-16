@@ -21,7 +21,11 @@ test('does not synthesize thermostat status topics; publishes exactly configured
     name: 'default',
     mqttTopics: { thermostatStatus: ['site/home/living-space/climate/thermostat'] }
   }), ['site/home/living-space/climate/thermostat'])
-  assert.deepEqual(topicsModule.resolveThermostatStatusTopics({ name: 'apt' }), [])
+  assert.deepEqual(topicsModule.resolveThermostatStatusTopics({
+    name: 'apt',
+    mqttTopics: { thermostatStatus: ['site/apt/living-room/climate/thermostat'] }
+  }), ['site/apt/living-room/climate/thermostat'])
+  assert.deepEqual(topicsModule.resolveThermostatStatusTopics({ name: 'unconfigured' }), [])
 })
 
 test('deduplicates configured legacy/site sensor paths', () => {

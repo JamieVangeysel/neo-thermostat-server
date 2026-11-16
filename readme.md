@@ -48,7 +48,7 @@ node index.min.js
 
 Development mode makes the Fastify route prefix `/test`; production uses `/v1` unless `APP_VERSION` is set. The Fastify listener is on port `config.port + 1` (default 8081 when `config.port` is 8080). The plain HTTP listener uses `config.hostname` and `config.port`.
 
-Predictive preheat prototypes are shadow-only and issue no relay commands. Run `npm run preheat:poc` for the synthetic threshold example; run `npm run thermal:phase-poc -- --csv /path/to/data-log.csv` for deterministic per-switch coast/lag analysis with January training and February holdout. The runtime transcript is retained on `<relais.hostname>/thermostat/<encoded-instance-name>/preheat-shadow/status`. See [`docs/preheat-poc.md`](docs/preheat-poc.md) and [`docs/thermal-response-poc.md`](docs/thermal-response-poc.md).
+Predictive preheat prototypes are shadow-only and issue no relay commands. Run `npm run preheat:poc` for the synthetic threshold example; run `npm run thermal:phase-poc -- --csv /path/to/data-log.csv` for deterministic per-switch coast/lag analysis with January training and February holdout. The runtime shadow transcript is published retained (QoS 1) to each exact per-instance `mqttTopics.thermostatStatus` entry; configure the sensor subscriptions in `mqttTopics.temperature`. The legacy sensor subscription and relay command/status topics remain supported. Example home topics: `site/home/master-bedroom/climate/temperature` and `site/home/living-space/climate/thermostat`. See [`docs/preheat-poc.md`](docs/preheat-poc.md) and [`docs/thermal-response-poc.md`](docs/thermal-response-poc.md).
 
 ## Configuration
 
@@ -56,8 +56,8 @@ Predictive preheat prototypes are shadow-only and issue no relay commands. Run `
 
 - `version`, `hostname`, and `port`
 - `weatherMapApiKey`
-- `relais.hostname` (MQTT topic prefix) and `relais.secure`
-- `instances[]`: optional `name`, `temperatureSensor`, `switches[]`, and `thermostatState`
+- `relais.hostname` (legacy relay command/status topic prefix) and `relais.secure`
+- `instances[]`: optional `name`, `temperatureSensor`, `mqttTopics.temperature[]` (additional exact sensor topics; legacy sensor topic remains subscribed), `mqttTopics.thermostatStatus[]` (exact retained status destinations), `switches[]`, and `thermostatState`
 - `thermostatState`: current/target temperature, current/target mode, humidity, and display units
 - `mongoDB` is optional. If omitted, Mongo persistence stays disabled and startup continues; configured Mongo connection failures are logged and treated as optional persistence failure.
 
